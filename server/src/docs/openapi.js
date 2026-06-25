@@ -469,7 +469,7 @@ module.exports = {
                 required: ['status'],
                 properties: {
                   status: { $ref: '#/components/schemas/ApplicationStatus' },
-                  recruiterNotes: { type: 'string' }
+                  recruiterNotes: { type: 'string', description: 'Private recruiter notes. Changing to shortlisted or rejected triggers an approved candidate email.' }
                 }
               }
             }
@@ -484,7 +484,18 @@ module.exports = {
                   type: 'object',
                   properties: {
                     message: { type: 'string' },
-                    application: { $ref: '#/components/schemas/Application' }
+                    application: { $ref: '#/components/schemas/Application' },
+                    notification: {
+                      type: 'object',
+                      nullable: true,
+                      properties: {
+                        sent: { type: 'boolean' },
+                        skipped: { type: 'boolean' },
+                        duplicate: { type: 'boolean' },
+                        messageId: { type: 'string' },
+                        error: { type: 'string' }
+                      }
+                    }
                   }
                 }
               }
@@ -713,6 +724,21 @@ module.exports = {
           recommendation: { type: 'string', enum: ['strong_match', 'good_match', 'partial_match', 'not_suitable'] },
           status: { $ref: '#/components/schemas/ApplicationStatus' },
           recruiterNotes: { type: 'string' },
+          notifications: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                status: { type: 'string', enum: ['shortlisted', 'rejected'] },
+                recipient: { type: 'string', format: 'email' },
+                sent: { type: 'boolean' },
+                skipped: { type: 'boolean' },
+                messageId: { type: 'string' },
+                error: { type: 'string' },
+                attemptedAt: { type: 'string', format: 'date-time' }
+              }
+            }
+          },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }
         }

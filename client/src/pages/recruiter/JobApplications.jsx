@@ -145,6 +145,7 @@ export default function JobApplications() {
   const [search, setSearch] = useState("");
   const [minimumScore, setMinimumScore] = useState("");
   const [notes, setNotes] = useState({});
+  const [statusMessage, setStatusMessage] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -169,14 +170,38 @@ export default function JobApplications() {
   }, [jobId]);
 
   const updateStatus = async (appId, status, recruiterNotes = notes[appId]) => {
-    setUpdating(appId);
-    try {
-      await api.patch(`/applications/${appId}/status`, { status, recruiterNotes });
-      setApplications((prev) =>
-        prev.map((a) => a._id === appId ? { ...a, status, recruiterNotes } : a)
+    const currentApplication = applications.find((app) => app._id === appId);
+    const sendsEmail = ["shortlisted", "rejected"].includes(status)
+      && currentApplication?.status !== status;
+    if (sendsEmail) {
+      const candidateName = currentApplication?.candidate?.fullName || "this candidate";
+      const confirmed = window.confirm(
+        `Approve changing ${candidateName} to ${status}? This will send the candidate an email.`
       );
+      if (!confirmed) return;
+    }
+
+    setUpdating(appId);
+    setStatusMessage(null);
+    try {
+      const { data } = await api.patch(`/applications/${appId}/status`, { status, recruiterNotes });
+      setApplications((prev) =>
+        prev.map((a) => a._id === appId
+          ? { ...a, status, recruiterNotes, notifications: data.application?.notifications || a.notifications }
+          : a)
+      );
+      if (data.notification?.sent) {
+        setStatusMessage({ type: "success", text: `Status updated and email sent to ${currentApplication?.candidate?.email}.` });
+      } else if (data.notification?.skipped) {
+        setStatusMessage({ type: "warning", text: `Status updated. ${data.notification.error}` });
+      } else {
+        setStatusMessage({ type: "success", text: "Application status updated." });
+      }
     } catch (err) {
-      console.error(err);
+      setStatusMessage({
+        type: "error",
+        text: err.response?.data?.error || "Failed to update application status."
+      });
     } finally {
       setUpdating(null);
     }
@@ -249,6 +274,18 @@ export default function JobApplications() {
           {applications.length} candidate{applications.length !== 1 ? "s" : ""} · ranked by AI match score
         </p>
       </div>
+
+      {statusMessage && (
+        <div className={`mb-5 px-4 py-3 rounded-lg border text-sm ${
+          statusMessage.type === "success"
+            ? "bg-green-500/10 border-green-500/20 text-green-400"
+            : statusMessage.type === "warning"
+              ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+              : "bg-red-500/10 border-red-500/20 text-red-400"
+        }`}>
+          {statusMessage.text}
+        </div>
+      )}
 
       <div className="mb-6 space-y-3">
         <div className="flex flex-wrap gap-2">

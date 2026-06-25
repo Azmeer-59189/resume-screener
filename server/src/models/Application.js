@@ -56,6 +56,15 @@ const applicationSchema = new mongoose.Schema({
     default: 'applied'
   },
   recruiterNotes: { type: String },
+  notifications: [{
+    status: { type: String, enum: ['shortlisted', 'rejected'] },
+    recipient: { type: String },
+    sent: { type: Boolean, default: false },
+    skipped: { type: Boolean, default: false },
+    messageId: { type: String },
+    error: { type: String },
+    attemptedAt: { type: Date, default: Date.now }
+  }],
   isAiProcessed: { type: Boolean, default: false },
   aiProcessedAt: { type: Date },
 

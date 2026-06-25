@@ -18,6 +18,7 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Reliable local scoring fallback when external AI services are unavailable
 - Recruiter-only resume downloads
 - Application shortlisting and rejection
+- Recruiter-approved shortlist and rejection emails
 - Recruiter search, score filters, notes, status tracking, and CSV export
 - Application deadline enforcement and PDF signature validation
 - Safe job deletion with related application, resume, file, and vector cleanup
@@ -189,6 +190,24 @@ To test recruiter-only endpoints:
 4. Paste the token without adding the `Bearer` prefix.
 
 Public job and candidate-application endpoints do not require authorization.
+
+## Candidate email notifications
+
+When a recruiter approves changing an application to `shortlisted` or `rejected`, the backend sends a status email to the candidate. Successful notifications are stored on the application record so the same status email is not sent twice.
+
+Add SMTP settings to `server/.env`:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+MAIL_FROM="ResumeAI Hiring <your_email@gmail.com>"
+MAIL_REPLY_TO=your_email@gmail.com
+```
+
+For Gmail, use an App Password rather than the normal account password. If SMTP is not configured or delivery fails, the application status is still saved and the recruiter sees a delivery warning.
 
 ## Maintenance scripts
 

@@ -5,6 +5,7 @@ const { extractText, chunkText, cleanText } = require('../services/pdfService');
 const { generateEmbedding, analyzeResumeMatch } = require('../services/gemini');
 const { storeEmbeddings, searchSimilarChunks } = require('../services/pinecone');
 const { scoreResumeLocally, normalizeAiAnalysis } = require('../services/localScoring');
+const { sendApplicationStatusEmail } = require('../services/email');
 const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
@@ -241,7 +242,9 @@ exports.updateApplicationStatus = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid application status.' });
     }
 
-    const application = await Application.findById(req.params.id).populate('job');
+    const application = await Application.findById(req.params.id)
+      .populate('job')
+      .populate('candidate', 'fullName email');
     if (!application) return res.status(404).json({ error: 'Application not found.' });
     if (application.job.recruiter.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Not authorized.' });
@@ -250,7 +253,6 @@ exports.updateApplicationStatus = async (req, res, next) => {
     const previousStatus = application.status;
     application.status = status;
     if (typeof recruiterNotes === 'string') application.recruiterNotes = recruiterNotes;
-    await application.save();
 
     if (status === 'shortlisted' && previousStatus !== 'shortlisted') {
       await Job.findByIdAndUpdate(application.job._id, { $inc: { shortlisted: 1 } });
@@ -263,7 +265,50 @@ exports.updateApplicationStatus = async (req, res, next) => {
       await Job.findByIdAndUpdate(application.job._id, { $inc: { rejected: -1 } });
     }
 
-    res.json({ message: 'Status updated.', application });
+    await application.save();
+
+    let notification = null;
+    const shouldNotify = ['shortlisted', 'rejected'].includes(status)
+      && status !== previousStatus;
+    const alreadySent = application.notifications?.some(item =>
+      item.status === status && item.sent
+    );
+
+    if (shouldNotify && !alreadySent) {
+      notification = await sendApplicationStatusEmail({
+        to: application.candidate.email,
+        status,
+        candidateName: application.candidate.fullName,
+        jobTitle: application.job.title,
+        company: application.job.company
+      });
+      const notificationRecord = {
+        status,
+        recipient: application.candidate.email,
+        sent: Boolean(notification.sent),
+        skipped: Boolean(notification.skipped),
+        messageId: notification.messageId,
+        error: notification.error,
+        attemptedAt: new Date()
+      };
+      await Application.updateOne(
+        { _id: application._id },
+        { $push: { notifications: notificationRecord } }
+      );
+      application.notifications.push(notificationRecord);
+    } else if (shouldNotify && alreadySent) {
+      notification = {
+        sent: false,
+        skipped: true,
+        duplicate: true,
+        error: `A ${status} email was already sent to this candidate.`
+      };
+    }
+    res.json({
+      message: 'Status updated.',
+      application,
+      notification
+    });
   } catch (error) { next(error); }
 };
 
