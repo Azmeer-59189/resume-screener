@@ -1,0 +1,28 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+server/.env
+
+# Dependencies and builds
+node_modules/
+dist/
+build/
+coverage/
+
+# Uploaded resumes and personal data
+uploads/
+server/uploads/
+
+# Local OCR/model artifacts and debugging helpers
+server/*.traineddata
+server/inspect*.js
+
+# Logs and local tooling
+*.log
+.agents/
+.codex/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
