@@ -167,6 +167,29 @@ Open:
 http://localhost:5173
 ```
 
+## Swagger API documentation
+
+With the backend running, open the interactive Swagger UI:
+
+```text
+http://localhost:5000/api-docs
+```
+
+The raw OpenAPI document is available at:
+
+```text
+http://localhost:5000/api-docs/openapi.json
+```
+
+To test recruiter-only endpoints:
+
+1. Run `POST /api/auth/login` in Swagger.
+2. Copy the returned JWT token.
+3. Click **Authorize**.
+4. Paste the token without adding the `Bearer` prefix.
+
+Public job and candidate-application endpoints do not require authorization.
+
 ## Maintenance scripts
 
 Run these commands inside `server/`:

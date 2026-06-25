@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoose = require('mongoose');
+const swaggerUi = require('swagger-ui-express');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -11,6 +12,7 @@ const applicationRoutes = require('./routes/applications');
 const recruiterRoutes = require('./routes/recruiter');
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
+const openapiDocument = require('./docs/openapi');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,6 +50,17 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Routes
+app.get('/api-docs/openapi.json', (req, res) => res.json(openapiDocument));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiDocument, {
+  customSiteTitle: 'ResumeAI API Documentation',
+  customCss: '.swagger-ui .topbar { display: none }',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true
+  }
+}));
+
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
