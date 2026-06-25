@@ -138,7 +138,6 @@ PORT=5000
 NODE_ENV=development
 MONGODB_URI=mongodb://localhost:27017/resume_screener_hiring_portal
 JWT_SECRET=replace_with_a_long_random_secret
-REFRESH_TOKEN_SECRET=replace_with_a_different_long_random_secret
 CLIENT_URL=http://localhost:5173
 
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -167,6 +166,24 @@ Open:
 ```text
 http://localhost:5173
 ```
+
+## Verification
+
+Run the backend test suite:
+
+```bash
+cd server
+npm test
+```
+
+Build the frontend for production:
+
+```bash
+cd client
+npm run build
+```
+
+The automated tests currently cover local scoring, PDF upload validation, email generation, and the OpenAPI document.
 
 ## Swagger API documentation
 
@@ -226,6 +243,18 @@ npm run db:separate
 
 The migration scripts should only be run when required.
 
+## Production deployment
+
+The frontend sends API requests to `/api`. In production, configure the web server or hosting platform to:
+
+- Serve the built frontend from `client/dist`.
+- Proxy `/api` requests to the Express backend.
+- Set `CLIENT_URL` to the public frontend origin.
+- Provide production values for `MONGODB_URI`, `JWT_SECRET`, and any enabled AI or SMTP services.
+- Use HTTPS and private object storage for uploaded resumes.
+
+The backend also exposes `GET /health` for deployment health checks.
+
 ## Privacy and security
 
 - `.env` files are excluded from Git.
@@ -237,9 +266,11 @@ The migration scripts should only be run when required.
 
 - Uploaded PDFs are stored on the local server filesystem.
 - Scanned-image CVs may require a complete OCR fallback.
-- Email notifications are not implemented.
+- Candidate emails require valid SMTP credentials and are only sent for recruiter-approved `shortlisted` and `rejected` status changes.
 - Automated coverage currently focuses on scoring and upload validation; route-level integration tests are still limited.
+- The project does not yet include an automated CI pipeline.
+- Production hosting, object storage, backups, retention rules, and monitoring must be configured separately.
 
 ## License
 
-This project currently uses the ISC license declared in the server package.
+The backend package declares the ISC license. Add a root `LICENSE` file before distributing the project under that license.
