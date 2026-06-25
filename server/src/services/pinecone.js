@@ -72,3 +72,14 @@ exports.deleteCandidate = async (candidateId) => {
     logger.error('Pinecone delete failed:', error);
   }
 };
+
+exports.deleteJobVectors = async (jobId) => {
+  if (!process.env.PINECONE_API_KEY) return;
+  try {
+    const idx = await getIndex();
+    await idx.deleteMany({ filter: { jobId } });
+    logger.info(`Deleted vectors for job ${jobId}`);
+  } catch (error) {
+    logger.warn(`Pinecone cleanup skipped for job ${jobId}: ${error.message}`);
+  }
+};

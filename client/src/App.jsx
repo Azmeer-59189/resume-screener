@@ -47,6 +47,9 @@ function AppRoutes() {
           <Route path="/recruiter/jobs/new" element={
             <ProtectedRoute role="recruiter"><PostJob /></ProtectedRoute>
           } />
+          <Route path="/recruiter/jobs/:id/edit" element={
+            <ProtectedRoute role="recruiter"><PostJob /></ProtectedRoute>
+          } />
           <Route path="/recruiter/jobs/:jobId/applications" element={
             <ProtectedRoute role="recruiter"><JobApplications /></ProtectedRoute>
           } />

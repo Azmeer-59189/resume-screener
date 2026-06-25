@@ -9,7 +9,7 @@
     "scores:recalculate": "node scripts/recalculateScores.js",
     "db:separate": "node scripts/separateDatabase.js",
     "resumes:backfill-jobs": "node scripts/backfillResumeJobs.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/*.test.js"
   },
   "keywords": [],
   "author": "",

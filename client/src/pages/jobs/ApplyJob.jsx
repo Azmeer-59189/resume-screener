@@ -14,6 +14,7 @@ export default function ApplyJob() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const deadlinePassed = Boolean(job?.deadline && new Date(job.deadline) < new Date());
 
   useEffect(() => {
     axios.get(`/api/jobs/apply/${jobId}`)
@@ -104,11 +105,11 @@ export default function ApplyJob() {
               </div>
             </div>
             <span className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${
-              job?.status === "active"
+              job?.status === "active" && !deadlinePassed
                 ? "bg-green-500/10 text-green-400 border-green-500/20"
                 : "bg-slate-500/10 text-slate-400 border-slate-700"
             }`}>
-              {job?.status === "active" ? "Now Hiring" : "Closed"}
+              {job?.status === "active" && !deadlinePassed ? "Now Hiring" : "Closed"}
             </span>
           </div>
           {job?.requiredSkills?.length > 0 && (
@@ -207,12 +208,12 @@ export default function ApplyJob() {
 
             <button
               onClick={handleSubmit}
-              disabled={submitting || job?.status !== "active"}
+              disabled={submitting || job?.status !== "active" || deadlinePassed}
               className="w-full mt-5 py-3 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {submitting ? (
                 <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Submitting…</>
-              ) : job?.status !== "active" ? "Position Closed" : "Submit Application"}
+              ) : job?.status !== "active" || deadlinePassed ? "Position Closed" : "Submit Application"}
             </button>
             <p className="mt-3 text-center text-xs text-slate-500">No account needed · Takes 30 seconds</p>
           </div>

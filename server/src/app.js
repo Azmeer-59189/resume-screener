@@ -70,7 +70,7 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/resume_screener');
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/resume_screener_hiring_portal');
     logger.info('MongoDB connected successfully.');
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);

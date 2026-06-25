@@ -2,8 +2,57 @@ const Job = require('../models/Job');
 const logger = require('../utils/logger');
 const { generateEmbedding } = require('../services/gemini');
 const { searchSimilarChunks } = require('../services/pinecone');
-const { Resume } = require('../models/Application');
+const { deleteJobVectors } = require('../services/pinecone');
+const { Application, Resume } = require('../models/Application');
+const { scoreResumeLocally } = require('../services/localScoring');
 const User = require('../models/User');
+const fs = require('fs');
+
+const cleanStringList = value => Array.isArray(value)
+  ? [...new Set(value.map(item => String(item).trim()).filter(Boolean))]
+  : [];
+
+const validateJobInput = (payload, partial = false) => {
+  const requiredFields = ['title', 'description', 'requirements', 'requiredSkills'];
+  for (const field of requiredFields) {
+    if (!partial || Object.prototype.hasOwnProperty.call(payload, field)) {
+      const value = payload[field];
+      if (!value || (Array.isArray(value) && value.length === 0)) {
+        return `${field} is required.`;
+      }
+    }
+  }
+  if (payload.deadline && new Date(payload.deadline) <= new Date()) {
+    return 'Deadline must be in the future.';
+  }
+  return null;
+};
+
+const rescoreJobApplications = async job => {
+  const applications = await Application.find({ job: job._id }).populate('resume');
+  if (!applications.length) return 0;
+  const operations = applications
+    .filter(application => application.resume?.rawText)
+    .map(application => ({
+      updateOne: {
+        filter: { _id: application._id },
+        update: {
+          $set: {
+            ...scoreResumeLocally(job, application.resume.rawText),
+            isAiProcessed: true,
+            aiProcessedAt: new Date(),
+            processingError: null
+          }
+        }
+      }
+    }));
+  if (operations.length) await Application.bulkWrite(operations);
+  await Resume.updateMany(
+    { job: job._id },
+    { $set: { jobId: job.jobId, jobTitle: job.title } }
+  );
+  return operations.length;
+};
 
 exports.createJob = async (req, res, next) => {
   try {
@@ -13,12 +62,23 @@ exports.createJob = async (req, res, next) => {
       salary, deadline
     } = req.body;
 
+    const normalized = {
+      ...req.body,
+      requirements: cleanStringList(requirements),
+      requiredSkills: cleanStringList(requiredSkills),
+      niceToHaveSkills: cleanStringList(niceToHaveSkills)
+    };
+    const validationError = validateJobInput(normalized);
+    if (validationError) return res.status(400).json({ error: validationError });
+
     const job = new Job({
       recruiter: req.user._id,
       company: req.user.company || 'My Company',
-      title, description, requirements,
-      requiredSkills: requiredSkills || [],
-      niceToHaveSkills: niceToHaveSkills || [],
+      title: String(title).trim(),
+      description: String(description).trim(),
+      requirements: normalized.requirements,
+      requiredSkills: normalized.requiredSkills,
+      niceToHaveSkills: normalized.niceToHaveSkills,
       location, type, experienceLevel, salary, deadline
     });
 
@@ -78,18 +138,30 @@ exports.updateJob = async (req, res, next) => {
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => allowed.includes(key))
     );
+    if (updates.requirements) updates.requirements = cleanStringList(updates.requirements);
+    if (updates.requiredSkills) updates.requiredSkills = cleanStringList(updates.requiredSkills);
+    if (updates.niceToHaveSkills) updates.niceToHaveSkills = cleanStringList(updates.niceToHaveSkills);
+    if (typeof updates.title === 'string') updates.title = updates.title.trim();
+    if (typeof updates.description === 'string') updates.description = updates.description.trim();
+    const validationError = validateJobInput(updates, true);
+    if (validationError) return res.status(400).json({ error: validationError });
+
     const job = await Job.findOneAndUpdate(
       { _id: req.params.id, recruiter: req.user._id },
       updates,
       { new: true, runValidators: true }
     );
     if (!job) return res.status(404).json({ error: 'Job not found.' });
-    res.json({ job });
+    const rescoredApplications = await rescoreJobApplications(job);
+    res.json({ job, rescoredApplications });
   } catch (error) { next(error); }
 };
 
 exports.toggleJobStatus = async (req, res, next) => {
   try {
+    if (!['active', 'paused', 'closed'].includes(req.body.status)) {
+      return res.status(400).json({ error: 'Invalid job status.' });
+    }
     const job = await Job.findOne({ _id: req.params.id, recruiter: req.user._id });
     if (!job) return res.status(404).json({ error: 'Job not found.' });
     job.status = req.body.status;
@@ -100,9 +172,38 @@ exports.toggleJobStatus = async (req, res, next) => {
 
 exports.deleteJob = async (req, res, next) => {
   try {
-    const deleted = await Job.findOneAndDelete({ _id: req.params.id, recruiter: req.user._id });
-    if (!deleted) return res.status(404).json({ error: 'Job not found.' });
-    res.json({ message: 'Job deleted.' });
+    const job = await Job.findOne({ _id: req.params.id, recruiter: req.user._id });
+    if (!job) return res.status(404).json({ error: 'Job not found.' });
+
+    const [applications, resumes] = await Promise.all([
+      Application.find({ job: job._id }).select('candidate'),
+      Resume.find({ job: job._id }).select('filePath')
+    ]);
+    const candidateIds = [...new Set(applications.map(item => item.candidate.toString()))];
+
+    await Promise.all([
+      Application.deleteMany({ job: job._id }),
+      Resume.deleteMany({ job: job._id })
+    ]);
+    await job.deleteOne();
+
+    await Promise.allSettled(
+      resumes.filter(resume => resume.filePath).map(resume => fs.promises.unlink(resume.filePath))
+    );
+    await deleteJobVectors(job._id.toString());
+
+    for (const candidateId of candidateIds) {
+      const hasOtherApplications = await Application.exists({ candidate: candidateId });
+      if (!hasOtherApplications) {
+        await User.deleteOne({ _id: candidateId, role: 'candidate' });
+      }
+    }
+
+    res.json({
+      message: 'Job and related application data deleted.',
+      deletedApplications: applications.length,
+      deletedResumes: resumes.length
+    });
   } catch (error) { next(error); }
 };
 
@@ -156,5 +257,13 @@ exports.matchJob = async (req, res, next) => {
     }
 
     res.json({ job: { _id: job._id, title: job.title }, matches: results });
+  } catch (error) { next(error); }
+};
+
+exports.getMyJob = async (req, res, next) => {
+  try {
+    const job = await Job.findOne({ _id: req.params.id, recruiter: req.user._id });
+    if (!job) return res.status(404).json({ error: 'Job not found.' });
+    res.json({ job });
   } catch (error) { next(error); }
 };

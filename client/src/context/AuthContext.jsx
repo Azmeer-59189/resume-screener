@@ -38,10 +38,8 @@ export function AuthProvider({ children }) {
   }
   try {
     const { data } = await api.get("/auth/me");
-    console.log("fetchMe response:", data); // DEBUG - check console
     setUser(data); // data is the user object directly
   } catch (err) {
-    console.log("fetchMe error:", err.response?.status, err.message); // DEBUG
     localStorage.removeItem("token");
     setUser(null);
   } finally {

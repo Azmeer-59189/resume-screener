@@ -11,6 +11,7 @@ router.get('/', jobController.getAllActiveJobs);            // browse jobs
 // Recruiter only
 router.post('/', authenticate, authorize('recruiter'), jobController.createJob);
 router.get('/my', authenticate, authorize('recruiter'), jobController.getMyJobs);
+router.get('/manage/:id', authenticate, authorize('recruiter'), jobController.getMyJob);
 router.put('/:id', authenticate, authorize('recruiter'), jobController.updateJob);
 router.patch('/:id/status', authenticate, authorize('recruiter'), jobController.toggleJobStatus);
 router.delete('/:id', authenticate, authorize('recruiter'), jobController.deleteJob);

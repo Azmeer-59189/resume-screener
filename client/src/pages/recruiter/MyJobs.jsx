@@ -37,6 +37,22 @@ export default function MyJobs() {
     }
   };
 
+  const deleteJob = async (job) => {
+    const confirmed = window.confirm(
+      `Delete "${job.title}" and all of its applications and uploaded resumes? This cannot be undone.`
+    );
+    if (!confirmed) return;
+    setUpdating(job._id);
+    try {
+      await api.delete(`/jobs/${job._id}`);
+      setJobs((previous) => previous.filter((item) => item._id !== job._id));
+    } catch (err) {
+      window.alert(err.response?.data?.error || "Failed to delete job.");
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -122,6 +138,12 @@ export default function MyJobs() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  <Link
+                    to={`/recruiter/jobs/${job._id}/edit`}
+                    className="text-xs px-3 py-1.5 border border-slate-700 text-slate-300 rounded-lg hover:border-slate-600 hover:text-white transition-all"
+                  >
+                    Edit
+                  </Link>
                   {/* ✅ FIX: pass job.jobId not job._id to copyLink */}
                   <button
                     onClick={() => copyLink(job.jobId)}
@@ -138,6 +160,14 @@ export default function MyJobs() {
                     {updating === job._id ? "…" : job.status === "active" ? "Pause" : "Activate"}
                   </button>
 
+                  <button
+                    onClick={() => deleteJob(job)}
+                    disabled={updating === job._id}
+                    className="text-xs px-3 py-1.5 border border-red-500/20 text-red-400 rounded-lg hover:bg-red-500/10 transition-all disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+
                   <Link
                     to={`/recruiter/jobs/${job.jobId}/applications`}
                     className="text-xs px-3 py-1.5 bg-blue-500/15 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/25 transition-all"
@@ -150,6 +180,8 @@ export default function MyJobs() {
               <div className="mt-3 pt-3 border-t border-slate-800 flex items-center gap-4 text-xs text-slate-500">
                 <span>Posted {new Date(job.createdAt).toLocaleDateString()}</span>
                 <span>{job.totalApplications || 0} application{job.totalApplications !== 1 ? "s" : ""}</span>
+                {job.deadline && <span>Deadline {new Date(job.deadline).toLocaleDateString()}</span>}
+                <span className="capitalize">{job.experienceLevel || "mid"} level</span>
               </div>
             </div>
           ))}

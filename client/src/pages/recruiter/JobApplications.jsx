@@ -6,8 +6,12 @@ const STATUS_CONFIG = {
   applied:     { label: "Applied",     cls: "bg-slate-500/10 text-slate-400 border-slate-700" },
   reviewing:   { label: "Reviewing",   cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   shortlisted: { label: "Shortlisted", cls: "bg-green-500/10 text-green-400 border-green-500/20" },
+  interviewed: { label: "Interviewed", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+  offered:     { label: "Offered",     cls: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
   rejected:    { label: "Rejected",    cls: "bg-red-500/10 text-red-400 border-red-500/20" },
 };
+
+const APPLICATION_STATUSES = Object.keys(STATUS_CONFIG);
 
 function ScoreBar({ score }) {
   const pct = Math.max(0, Math.min(100, Math.round(Number(score) || 0)));
@@ -138,6 +142,9 @@ export default function JobApplications() {
   const [updating, setUpdating] = useState(null);
   const [filter, setFilter] = useState("all");
   const [expanded, setExpanded] = useState({});
+  const [search, setSearch] = useState("");
+  const [minimumScore, setMinimumScore] = useState("");
+  const [notes, setNotes] = useState({});
 
   useEffect(() => {
     const load = async () => {
@@ -146,7 +153,11 @@ export default function JobApplications() {
           api.get(`/applications/job/${jobId}`),
           api.get(`/jobs/apply/${jobId}`),
         ]);
-        setApplications(appRes.data.applications || appRes.data || []);
+        const loadedApplications = appRes.data.applications || appRes.data || [];
+        setApplications(loadedApplications);
+        setNotes(Object.fromEntries(
+          loadedApplications.map((app) => [app._id, app.recruiterNotes || ""])
+        ));
         setJob(jobRes.data.job || jobRes.data);
       } catch (err) {
         console.error(err);
@@ -157,12 +168,12 @@ export default function JobApplications() {
     load();
   }, [jobId]);
 
-  const updateStatus = async (appId, status) => {
+  const updateStatus = async (appId, status, recruiterNotes = notes[appId]) => {
     setUpdating(appId);
     try {
-      await api.patch(`/applications/${appId}/status`, { status });
+      await api.patch(`/applications/${appId}/status`, { status, recruiterNotes });
       setApplications((prev) =>
-        prev.map((a) => a._id === appId ? { ...a, status } : a)
+        prev.map((a) => a._id === appId ? { ...a, status, recruiterNotes } : a)
       );
     } catch (err) {
       console.error(err);
@@ -185,7 +196,40 @@ export default function JobApplications() {
     }
   };
 
-  const filtered = filter === "all" ? applications : applications.filter((a) => a.status === filter);
+  const filtered = applications.filter((app) => {
+    const matchesStatus = filter === "all" || app.status === filter;
+    const query = search.trim().toLowerCase();
+    const matchesSearch = !query
+      || app.candidate?.fullName?.toLowerCase().includes(query)
+      || app.candidate?.email?.toLowerCase().includes(query)
+      || app.matchedSkills?.some((skill) => skill.toLowerCase().includes(query));
+    const matchesScore = minimumScore === "" || Number(app.matchScore || 0) >= Number(minimumScore);
+    return matchesStatus && matchesSearch && matchesScore;
+  });
+
+  const exportCsv = () => {
+    const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = [
+      ["Rank", "Candidate", "Email", "Score", "Status", "Matched Skills", "Missing Skills", "Notes"],
+      ...filtered.map((app, index) => [
+        index + 1,
+        app.candidate?.fullName,
+        app.candidate?.email,
+        Math.round(Number(app.matchScore) || 0),
+        app.status,
+        app.matchedSkills?.join("; "),
+        app.missingSkills?.join("; "),
+        app.recruiterNotes
+      ])
+    ];
+    const csv = rows.map((row) => row.map(escape).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${job?.title || "applications"}-applications.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -206,19 +250,44 @@ export default function JobApplications() {
         </p>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1 mb-6 p-1 bg-[#111D2C] border border-slate-800 rounded-lg w-fit">
-        {["all", "applied", "shortlisted", "rejected"].map((f) => (
+      <div className="mb-6 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name, email, or skill"
+            className="min-w-64 px-3 py-2 bg-[#111D2C] border border-slate-800 rounded-lg text-sm text-white placeholder-slate-500"
+          />
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={minimumScore}
+            onChange={(event) => setMinimumScore(event.target.value)}
+            placeholder="Minimum score"
+            className="w-40 px-3 py-2 bg-[#111D2C] border border-slate-800 rounded-lg text-sm text-white placeholder-slate-500"
+          />
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-md text-sm capitalize transition-all ${
-              filter === f ? "bg-blue-500 text-white" : "text-slate-400 hover:text-white"
-            }`}
+            onClick={exportCsv}
+            disabled={!filtered.length}
+            className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg text-sm hover:text-white disabled:opacity-40"
           >
-            {f}
+            Export CSV
           </button>
-        ))}
+        </div>
+        <div className="flex flex-wrap gap-1 p-1 bg-[#111D2C] border border-slate-800 rounded-lg w-fit">
+          {["all", ...APPLICATION_STATUSES].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-md text-sm capitalize transition-all ${
+                filter === f ? "bg-blue-500 text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -275,6 +344,16 @@ export default function JobApplications() {
                         📄 Resume
                       </button>
                     )}
+                    <select
+                      value={app.status}
+                      onChange={(event) => updateStatus(app._id, event.target.value)}
+                      disabled={updating === app._id}
+                      className="text-xs px-2 py-1.5 bg-[#0D1B2A] border border-slate-700 text-slate-300 rounded-lg capitalize"
+                    >
+                      {APPLICATION_STATUSES.map((status) => (
+                        <option key={status} value={status}>{STATUS_CONFIG[status].label}</option>
+                      ))}
+                    </select>
                     <button
                       onClick={() => updateStatus(app._id, "shortlisted")}
                       disabled={updating === app._id || app.status === "shortlisted"}
@@ -291,7 +370,30 @@ export default function JobApplications() {
                     </button>
                   </div>
                 </div>
-                {expanded[app._id] && <ScoreReasoning app={app} />}
+                {expanded[app._id] && (
+                  <>
+                    <ScoreReasoning app={app} />
+                    <div className="mt-4 pt-4 border-t border-slate-800">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Recruiter notes
+                      </label>
+                      <textarea
+                        value={notes[app._id] || ""}
+                        onChange={(event) => setNotes((current) => ({ ...current, [app._id]: event.target.value }))}
+                        rows={3}
+                        placeholder="Add interview observations or follow-up notes..."
+                        className="mt-2 w-full px-3 py-2 bg-[#0D1B2A] border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 resize-y"
+                      />
+                      <button
+                        onClick={() => updateStatus(app._id, app.status, notes[app._id])}
+                        disabled={updating === app._id}
+                        className="mt-2 px-3 py-1.5 bg-blue-500/15 text-blue-400 border border-blue-500/20 rounded-lg text-xs disabled:opacity-50"
+                      >
+                        Save notes
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}

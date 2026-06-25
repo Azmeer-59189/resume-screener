@@ -35,6 +35,10 @@ exports.applyToJob = async (req, res, next) => {
       removeUpload(req.file.path);
       return res.status(400).json({ error: 'This job is no longer accepting applications.' });
     }
+    if (job.deadline && new Date(job.deadline) < new Date()) {
+      removeUpload(req.file.path);
+      return res.status(400).json({ error: 'The application deadline has passed.' });
+    }
 
     let candidate = await User.findOne({ email: email.toLowerCase() });
     if (!candidate) {

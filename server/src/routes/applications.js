@@ -5,7 +5,12 @@ const { authenticate, authorize } = require('../middleware/auth');
 const appController = require('../controllers/applicationController');
 
 // PUBLIC route — no login needed
-router.post('/jobs/:jobId/apply', upload.single('resume'), appController.applyToJob);
+router.post(
+  '/jobs/:jobId/apply',
+  upload.single('resume'),
+  upload.validatePdfSignature,
+  appController.applyToJob
+);
 
 // Recruiter routes
 router.get('/job/:jobId', authenticate, authorize('recruiter'), appController.getJobApplications);

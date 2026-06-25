@@ -18,6 +18,10 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Reliable local scoring fallback when external AI services are unavailable
 - Recruiter-only resume downloads
 - Application shortlisting and rejection
+- Recruiter search, score filters, notes, status tracking, and CSV export
+- Application deadline enforcement and PDF signature validation
+- Safe job deletion with related application, resume, file, and vector cleanup
+- Automatic local re-scoring after job requirement updates
 - MongoDB storage with resumes grouped by job
 
 ## Technology
@@ -192,9 +196,7 @@ The migration scripts should only be run when required.
 - Uploaded PDFs are stored on the local server filesystem.
 - Scanned-image CVs may require a complete OCR fallback.
 - Email notifications are not implemented.
-- Editing a job does not yet automatically recalculate existing applications.
-- Deleting a job does not yet remove all related application data and files.
-- Automated tests still need to be added.
+- Automated coverage currently focuses on scoring and upload validation; route-level integration tests are still limited.
 
 ## License
 
