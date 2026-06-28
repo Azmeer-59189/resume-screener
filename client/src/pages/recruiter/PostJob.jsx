@@ -97,7 +97,7 @@ export default function PostJob() {
         <p className="text-slate-400 text-sm mt-1">
           {editing
             ? "Saving changes will automatically re-score existing applications."
-            : "Add clear requirements so candidate rankings are meaningful."}
+            : "Add a title, or provide more detail if you already have it. AI can enrich sparse job posts."}
         </p>
       </div>
 
@@ -146,16 +146,16 @@ export default function PostJob() {
             </Field>
           </div>
 
-          <Field label="Job Description" required>
-            <textarea name="description" value={form.description} onChange={handleChange} required rows={5} placeholder="Responsibilities and role context" className={inputCls} />
+          <Field label="Job Description" hint="Optional when AI enrichment is enabled">
+            <textarea name="description" value={form.description} onChange={handleChange} rows={5} placeholder="Responsibilities and role context" className={inputCls} />
           </Field>
 
-          <Field label="Requirements" hint="One per line" required>
-            <textarea name="requirements" value={form.requirements} onChange={handleChange} required rows={4} placeholder={"3+ years of experience\nStrong API design skills"} className={inputCls} />
+          <Field label="Requirements" hint="Optional; one per line">
+            <textarea name="requirements" value={form.requirements} onChange={handleChange} rows={4} placeholder={"3+ years of experience\nStrong API design skills"} className={inputCls} />
           </Field>
 
-          <Field label="Required Skills" hint="Comma-separated; 75% of local score" required>
-            <input name="skills" value={form.skills} onChange={handleChange} required placeholder="React, TypeScript, Node.js" className={inputCls} />
+          <Field label="Required Skills" hint="Optional; AI can infer from title">
+            <input name="skills" value={form.skills} onChange={handleChange} placeholder="React, TypeScript, Node.js" className={inputCls} />
           </Field>
 
           <Field label="Nice-to-have Skills" hint="Comma-separated">

@@ -1,0 +1,9 @@
+# Install this later when we build Agent 3: Matching & Scoring.
+#
+# On Windows, ChromaDB may need either:
+# - Python 3.11 or 3.12 with a compatible prebuilt wheel, or
+# - Microsoft C++ Build Tools if pip tries to compile chroma-hnswlib.
+#
+# If this fails with "Microsoft Visual C++ 14.0 or greater is required",
+# install the C++ Build Tools or recreate the venv with Python 3.11.
+chromadb==0.6.3

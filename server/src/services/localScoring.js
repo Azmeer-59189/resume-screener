@@ -1,3 +1,5 @@
+const { expandSkills, enrichTextWithInferredSkills } = require('./skillInference');
+
 const STOP_WORDS = new Set([
   'and', 'the', 'for', 'with', 'that', 'this', 'from', 'your', 'you', 'our',
   'are', 'will', 'have', 'has', 'job', 'role', 'work', 'years', 'year',
@@ -39,10 +41,16 @@ const displayTerm = term => ({
 }[term] || term);
 
 exports.scoreResumeLocally = (job, resumeText) => {
-  const normalizedResume = ` ${normalize(resumeText)} `;
-  const requiredSkills = Array.isArray(job.requiredSkills)
-    ? job.requiredSkills.map(skill => String(skill).trim()).filter(Boolean)
-    : [];
+  const enrichedResumeText = enrichTextWithInferredSkills(resumeText);
+  const normalizedResume = ` ${normalize(enrichedResumeText)} `;
+  const jobContextText = [
+    job.title,
+    job.description,
+    ...(Array.isArray(job.requirements) ? job.requirements : []),
+    ...(Array.isArray(job.requiredSkills) ? job.requiredSkills : []),
+    ...(Array.isArray(job.niceToHaveSkills) ? job.niceToHaveSkills : [])
+  ].filter(Boolean).join(' ');
+  const requiredSkills = expandSkills(job.requiredSkills, jobContextText);
   const matchedSkills = requiredSkills.filter(skill =>
     normalizedResume.includes(` ${normalize(skill)} `)
   );
@@ -55,7 +63,7 @@ exports.scoreResumeLocally = (job, resumeText) => {
     ...requiredSkills
   ].filter(Boolean).join(' ');
   const jobTokens = [...new Set(tokenize(jobText))];
-  const resumeTokens = new Set(tokenize(resumeText));
+  const resumeTokens = new Set(tokenize(enrichedResumeText));
   const matchedTokens = jobTokens.filter(token => resumeTokens.has(token));
 
   const skillCoverage = requiredSkills.length

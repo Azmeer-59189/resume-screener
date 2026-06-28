@@ -13,7 +13,18 @@ const STATUS_CONFIG = {
 
 const APPLICATION_STATUSES = Object.keys(STATUS_CONFIG);
 
-function ScoreBar({ score }) {
+function ScoreBar({ score, pending }) {
+  if (pending) {
+    return (
+      <div className="flex items-center gap-2.5">
+        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-full w-1/3 bg-blue-500 rounded-full animate-pulse" />
+        </div>
+        <span className="text-xs font-bold text-blue-400 whitespace-nowrap">AI pending</span>
+      </div>
+    );
+  }
+
   const pct = Math.max(0, Math.min(100, Math.round(Number(score) || 0)));
   const color = pct >= 75 ? "bg-green-500" : pct >= 50 ? "bg-blue-500" : pct >= 30 ? "bg-amber-500" : "bg-red-500";
   return (
@@ -48,11 +59,14 @@ function DetailList({ title, items, tone }) {
 
 function ScoreReasoning({ app }) {
   const breakdown = app.scoreBreakdown;
+  const pendingAi = app.scoringMethod === "agent" && !app.isAiProcessed;
   const methodLabel = app.scoringMethod === "ai"
     ? "AI assessment"
     : app.scoringMethod === "vector"
       ? "Vector similarity"
-      : "Local evidence score";
+      : app.scoringMethod === "agent"
+        ? "Hiring Agent pipeline"
+        : "Local evidence score";
 
   return (
     <div className="mt-4 pt-4 border-t border-slate-800">
@@ -61,7 +75,18 @@ function ScoreReasoning({ app }) {
         <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
           {methodLabel}
         </span>
+        {pendingAi && (
+          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            AI processing
+          </span>
+        )}
       </div>
+
+      {pendingAi && (
+        <p className="mb-4 text-sm text-slate-300 leading-relaxed">
+          The application is waiting for the Hiring Agent LLM score. Refresh shortly to see the verified ranking.
+        </p>
+      )}
 
       {breakdown && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
@@ -128,6 +153,56 @@ function ScoreReasoning({ app }) {
         <p className="text-xs text-slate-500 mt-4">
           Supporting terms found: {breakdown.matchedTerms.join(", ")}
         </p>
+      )}
+
+      {app.biasFlags?.summary && (
+        <div className="mt-4 rounded-lg bg-[#0D1B2A] border border-slate-800 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-400">Bias review</h4>
+            <span className={`text-xs px-2 py-0.5 rounded border ${
+              app.biasFlags.has_bias_risk
+                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                : "bg-green-500/10 text-green-400 border-green-500/20"
+            }`}>
+              {app.biasFlags.has_bias_risk ? "Review needed" : "No obvious risk"}
+            </span>
+          </div>
+          <p className="text-sm text-slate-300 mt-2 leading-relaxed">{app.biasFlags.summary}</p>
+          {app.biasFlags.flags?.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {app.biasFlags.flags.map((flag, index) => (
+                <li key={`${flag.category}-${index}`} className="text-xs text-slate-300 leading-relaxed">
+                  <span className="text-amber-400 font-semibold">{flag.category}</span>
+                  {flag.text ? `: "${flag.text}"` : ""} {flag.suggestion ? `- ${flag.suggestion}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {app.interviewQuestions?.[0]?.questions?.length > 0 && (
+        <div className="mt-4 rounded-lg bg-[#0D1B2A] border border-slate-800 p-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-purple-400">
+            Suggested interview questions
+          </h4>
+          <ol className="mt-2 space-y-2">
+            {app.interviewQuestions[0].questions.map((item, index) => (
+              <li key={`${item.question}-${index}`} className="text-sm text-slate-300 leading-relaxed">
+                <span className="text-slate-500">{index + 1}. </span>
+                {item.question}
+                {item.category && (
+                  <span className="ml-2 text-[11px] uppercase tracking-wide text-slate-500">
+                    {item.category}
+                  </span>
+                )}
+                {item.rationale && (
+                  <p className="ml-5 mt-1 text-xs text-slate-500">{item.rationale}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
     </div>
   );
@@ -335,6 +410,7 @@ export default function JobApplications() {
         <div className="space-y-3">
           {filtered.map((app, i) => {
             const sc = STATUS_CONFIG[app.status] || STATUS_CONFIG.applied;
+            const pendingAi = app.scoringMethod === "agent" && !app.isAiProcessed;
             return (
               <div key={app._id} className="bg-[#111D2C] border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
                 <div className="flex items-start gap-4">
@@ -352,6 +428,11 @@ export default function JobApplications() {
                       <span className={`text-xs px-2 py-0.5 rounded-full border ${sc.cls}`}>
                         {sc.label}
                       </span>
+                      {pendingAi && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                          AI processing
+                        </span>
+                      )}
                     </div>
                     <p className="text-slate-400 text-sm mt-0.5">{app.candidate?.email}</p>
 
@@ -360,7 +441,7 @@ export default function JobApplications() {
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs text-slate-500">Match Score</span>
                       </div>
-                      <ScoreBar score={app.matchScore ?? 0} />
+                      <ScoreBar score={app.matchScore ?? 0} pending={pendingAi} />
                     </div>
 
                     <button

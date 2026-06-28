@@ -27,7 +27,8 @@ const jobSchema = new mongoose.Schema({
   deadline: { type: Date },
   totalApplications: { type: Number, default: 0 },
   shortlisted: { type: Number, default: 0 },
-  rejected: { type: Number, default: 0 }
+  rejected: { type: Number, default: 0 },
+  aiJobProfile: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true });
 
 // Text index for search support

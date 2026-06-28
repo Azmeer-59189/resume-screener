@@ -719,8 +719,34 @@ module.exports = {
           strengths: { type: 'array', items: { type: 'string' } },
           weaknesses: { type: 'array', items: { type: 'string' } },
           scoreBreakdown: { $ref: '#/components/schemas/ScoreBreakdown' },
-          scoringMethod: { type: 'string', enum: ['local', 'ai', 'vector'] },
+          scoringMethod: { type: 'string', enum: ['local', 'ai', 'vector', 'agent'] },
           aiAnalysis: { type: 'string' },
+          biasFlags: {
+            type: 'object',
+            description: 'Bias review returned by the optional Python hiring-agent pipeline.'
+          },
+          interviewQuestions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                candidateName: { type: 'string' },
+                sourceFile: { type: 'string' },
+                score: { type: 'number' },
+                questions: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      question: { type: 'string' },
+                      category: { type: 'string' },
+                      rationale: { type: 'string' }
+                    }
+                  }
+                }
+              }
+            }
+          },
           recommendation: { type: 'string', enum: ['strong_match', 'good_match', 'partial_match', 'not_suitable'] },
           status: { $ref: '#/components/schemas/ApplicationStatus' },
           recruiterNotes: { type: 'string' },

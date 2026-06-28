@@ -5,6 +5,7 @@ const { searchSimilarChunks } = require('../services/pinecone');
 const { deleteJobVectors } = require('../services/pinecone');
 const { Application, Resume } = require('../models/Application');
 const { scoreResumeLocally } = require('../services/localScoring');
+const { enrichJobPost } = require('../services/hiringAgent');
 const User = require('../models/User');
 const fs = require('fs');
 
@@ -26,6 +27,60 @@ const validateJobInput = (payload, partial = false) => {
     return 'Deadline must be in the future.';
   }
   return null;
+};
+
+const enrichJobInput = async payload => {
+  const normalized = {
+    ...payload,
+    requirements: cleanStringList(payload.requirements),
+    requiredSkills: cleanStringList(payload.requiredSkills),
+    niceToHaveSkills: cleanStringList(payload.niceToHaveSkills)
+  };
+
+  const shouldEnrich = normalized.title && process.env.HIRING_AGENT_ENRICH_JOBS !== 'false';
+
+  if (!shouldEnrich) {
+    return normalized;
+  }
+
+  try {
+    const enriched = await enrichJobPost(normalized);
+    if (!enriched) return normalized;
+    const preserveManual = process.env.HIRING_AGENT_JOB_PROFILE_MODE === 'preserve_manual';
+    const enrichedRequirements = cleanStringList(enriched.requirements);
+    const enrichedRequiredSkills = cleanStringList(enriched.required_skills);
+    const enrichedNiceToHave = cleanStringList(enriched.nice_to_have_skills);
+
+    return {
+      ...normalized,
+      description: preserveManual
+        ? (normalized.description || enriched.description)
+        : (enriched.description || normalized.description),
+      requirements: preserveManual && normalized.requirements.length
+        ? normalized.requirements
+        : (enrichedRequirements.length ? enrichedRequirements : normalized.requirements),
+      requiredSkills: preserveManual && normalized.requiredSkills.length
+        ? normalized.requiredSkills
+        : (enrichedRequiredSkills.length ? enrichedRequiredSkills : normalized.requiredSkills),
+      niceToHaveSkills: preserveManual && normalized.niceToHaveSkills.length
+        ? normalized.niceToHaveSkills
+        : (enrichedNiceToHave.length ? enrichedNiceToHave : normalized.niceToHaveSkills),
+      experienceLevel: normalized.experienceLevel || enriched.experience_level,
+      aiJobProfile: {
+        ...enriched,
+        manualInput: {
+          description: normalized.description,
+          requirements: normalized.requirements,
+          requiredSkills: normalized.requiredSkills,
+          niceToHaveSkills: normalized.niceToHaveSkills
+        },
+        profileMode: preserveManual ? 'preserve_manual' : 'ai_preferred'
+      }
+    };
+  } catch (error) {
+    logger.warn(`Hiring Agent job enrichment unavailable: ${error.message}`);
+    return normalized;
+  }
 };
 
 const rescoreJobApplications = async job => {
@@ -62,24 +117,20 @@ exports.createJob = async (req, res, next) => {
       salary, deadline
     } = req.body;
 
-    const normalized = {
-      ...req.body,
-      requirements: cleanStringList(requirements),
-      requiredSkills: cleanStringList(requiredSkills),
-      niceToHaveSkills: cleanStringList(niceToHaveSkills)
-    };
+    const normalized = await enrichJobInput(req.body);
     const validationError = validateJobInput(normalized);
     if (validationError) return res.status(400).json({ error: validationError });
 
     const job = new Job({
       recruiter: req.user._id,
       company: req.user.company || 'My Company',
-      title: String(title).trim(),
-      description: String(description).trim(),
+      title: String(normalized.title || title).trim(),
+      description: String(normalized.description || description).trim(),
       requirements: normalized.requirements,
       requiredSkills: normalized.requiredSkills,
       niceToHaveSkills: normalized.niceToHaveSkills,
-      location, type, experienceLevel, salary, deadline
+      location, type, experienceLevel: normalized.experienceLevel || experienceLevel, salary, deadline,
+      aiJobProfile: normalized.aiJobProfile
     });
 
     await job.save();
@@ -141,6 +192,7 @@ exports.updateJob = async (req, res, next) => {
     if (updates.requirements) updates.requirements = cleanStringList(updates.requirements);
     if (updates.requiredSkills) updates.requiredSkills = cleanStringList(updates.requiredSkills);
     if (updates.niceToHaveSkills) updates.niceToHaveSkills = cleanStringList(updates.niceToHaveSkills);
+    Object.assign(updates, await enrichJobInput(updates));
     if (typeof updates.title === 'string') updates.title = updates.title.trim();
     if (typeof updates.description === 'string') updates.description = updates.description.trim();
     const validationError = validateJobInput(updates, true);

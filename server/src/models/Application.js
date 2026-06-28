@@ -44,10 +44,27 @@ const applicationSchema = new mongoose.Schema({
   },
   scoringMethod: {
     type: String,
-    enum: ['local', 'ai', 'vector'],
+    enum: ['local', 'ai', 'vector', 'agent'],
     default: 'local'
   },
   processingError: { type: String },
+  hiringAgent: {
+    jdParsed: { type: mongoose.Schema.Types.Mixed },
+    resumesParsed: [{ type: mongoose.Schema.Types.Mixed }],
+    scores: [{ type: mongoose.Schema.Types.Mixed }],
+    rawErrors: [{ type: String }]
+  },
+  biasFlags: { type: mongoose.Schema.Types.Mixed },
+  interviewQuestions: [{
+    candidateName: { type: String },
+    sourceFile: { type: String },
+    score: { type: Number },
+    questions: [{
+      question: { type: String },
+      category: { type: String },
+      rationale: { type: String }
+    }]
+  }],
 
   // Recruiter actions
   status: {

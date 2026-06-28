@@ -5,6 +5,7 @@ const { extractText, chunkText, cleanText } = require('../services/pdfService');
 const { generateEmbedding, analyzeResumeMatch } = require('../services/gemini');
 const { storeEmbeddings, searchSimilarChunks } = require('../services/pinecone');
 const { scoreResumeLocally, normalizeAiAnalysis } = require('../services/localScoring');
+const { isHiringAgentConfigured, runHiringAgentPipeline } = require('../services/hiringAgent');
 const { sendApplicationStatusEmail } = require('../services/email');
 const logger = require('../utils/logger');
 const fs = require('fs');
@@ -65,7 +66,34 @@ exports.applyToJob = async (req, res, next) => {
     const rawText = await extractText(req.file.path);
     const cleanedText = cleanText(rawText);
     const chunks = chunkText(cleanedText);
-    const baseline = scoreResumeLocally(job, cleanedText);
+    const shouldWaitForAgentScore = isHiringAgentConfigured()
+      && process.env.HIRING_AGENT_USE_LLM === 'true'
+      && process.env.HIRING_AGENT_SHOW_BASELINE !== 'true';
+    const baseline = shouldWaitForAgentScore
+      ? {
+        matchScore: 0,
+        matchedSkills: [],
+        missingSkills: [],
+        recommendation: 'not_suitable',
+        strengths: [],
+        weaknesses: ['AI analysis is queued. Refresh shortly to see the verified score.'],
+        scoreBreakdown: {
+          skillScore: 0,
+          contextScore: 0,
+          skillWeight: 0,
+          contextWeight: 0,
+          matchedSkillCount: 0,
+          totalSkillCount: 0,
+          matchedTermCount: 0,
+          totalTermCount: 0,
+          matchedTerms: [],
+          formula: 'Waiting for Hiring Agent AI scoring'
+        },
+        experienceSummary: 'AI analysis is queued.',
+        aiAnalysis: 'AI analysis is queued. Refresh shortly to see the verified score.',
+        scoringMethod: 'agent'
+      }
+      : scoreResumeLocally(job, cleanedText);
 
     const resume = await Resume.create({
       candidate: candidate._id,
@@ -84,6 +112,7 @@ exports.applyToJob = async (req, res, next) => {
       resume: resume._id,
       coverLetter,
       status: 'applied',
+      isAiProcessed: false,
       ...baseline
     });
 
@@ -95,7 +124,8 @@ exports.applyToJob = async (req, res, next) => {
     res.status(201).json({
       message: 'Application submitted successfully.',
       applicationId: application._id,
-      baselineScore: baseline.matchScore
+      baselineScore: shouldWaitForAgentScore ? null : baseline.matchScore,
+      aiProcessingQueued: shouldWaitForAgentScore
     });
   } catch (error) {
     if (req.file?.path) {
@@ -109,6 +139,33 @@ exports.applyToJob = async (req, res, next) => {
 const processAIAnalysis = async (applicationId, job, resume, chunks, candidateName) => {
   try {
     logger.info(`Processing AI analysis for application ${applicationId}`);
+
+    try {
+      const agentResult = await runHiringAgentPipeline({
+        job,
+        resumeText: resume.rawText || '',
+        sourceFile: resume.originalFileName,
+        useLlm: process.env.HIRING_AGENT_USE_LLM === 'true',
+        useEmbeddings: process.env.HIRING_AGENT_USE_EMBEDDINGS === 'true'
+      });
+
+      if (agentResult?.applicationUpdate) {
+        resume.isProcessed = true;
+        resume.processedAt = new Date();
+        await resume.save();
+
+        await Application.findByIdAndUpdate(applicationId, {
+          ...agentResult.applicationUpdate,
+          isAiProcessed: true,
+          aiProcessedAt: new Date()
+        });
+        logger.info(`Hiring Agent analysis complete for application ${applicationId}`);
+        return;
+      }
+    } catch (agentError) {
+      logger.warn(`Hiring Agent unavailable; falling back to existing AI processing: ${agentError.message}`);
+    }
+
     const embeddings = [];
 
     try {
