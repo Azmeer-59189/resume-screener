@@ -285,7 +285,7 @@ module.exports = {
       delete: {
         tags: ['Jobs - Recruiter'],
         summary: 'Delete a job and all related application data',
-        description: 'Deletes applications, resume records, local PDF files, job vectors, and candidate records that have no remaining applications.',
+        description: 'Deletes applications, resume records, local resume files, job vectors, and candidate records that have no remaining applications.',
         security: bearerSecurity,
         parameters: [{ $ref: '#/components/parameters/MongoId' }],
         responses: {
@@ -365,7 +365,7 @@ module.exports = {
       post: {
         tags: ['Applications - Public'],
         summary: 'Apply to a job without an account',
-        description: 'Uploads a real PDF up to 10 MB, extracts its text, creates an application, and calculates an immediate baseline score.',
+        description: 'Uploads a resume file up to 10 MB, extracts its text, creates an application, and calculates an immediate baseline score. Supports PDF, DOCX, DOC, TXT, RTF, PNG, JPG, WEBP, and TIFF.',
         parameters: [{ $ref: '#/components/parameters/JobId' }],
         requestBody: {
           required: true,
@@ -378,7 +378,7 @@ module.exports = {
                   fullName: { type: 'string', example: 'Jane Smith' },
                   email: { type: 'string', format: 'email', example: 'jane@example.com' },
                   coverLetter: { type: 'string' },
-                  resume: { type: 'string', format: 'binary', description: 'PDF file, maximum 10 MB' }
+                  resume: { type: 'string', format: 'binary', description: 'Resume file, maximum 10 MB. Supports PDF, DOCX, DOC, TXT, RTF, PNG, JPG, WEBP, and TIFF.' }
                 }
               }
             }
@@ -400,7 +400,7 @@ module.exports = {
               }
             }
           },
-          400: errorResponse('Missing fields, invalid PDF, closed job, or passed deadline'),
+          400: errorResponse('Missing fields, invalid resume file, closed job, or passed deadline'),
           404: errorResponse('Job not found'),
           409: errorResponse('Duplicate application or recruiter email conflict')
         }
@@ -437,14 +437,14 @@ module.exports = {
     '/api/applications/{id}/resume': {
       get: {
         tags: ['Applications - Recruiter'],
-        summary: 'Download an applicant’s PDF resume',
+        summary: 'Download an applicant’s resume file',
         security: bearerSecurity,
         parameters: [{ $ref: '#/components/parameters/MongoId' }],
         responses: {
           200: {
-            description: 'PDF resume',
+            description: 'Original resume file',
             content: {
-              'application/pdf': {
+              'application/octet-stream': {
                 schema: { type: 'string', format: 'binary' }
               }
             }

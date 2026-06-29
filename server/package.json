@@ -25,6 +25,7 @@
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.12.0",
     "mongoose": "^9.6.3",
     "morgan": "^1.11.0",
     "multer": "^2.1.1",
@@ -35,7 +36,8 @@
     "swagger-ui-express": "^5.0.1",
     "tesseract.js": "^7.0.0",
     "uuid": "^14.0.0",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

@@ -25,7 +25,7 @@ exports.applyToJob = async (req, res, next) => {
       return res.status(400).json({ error: 'Full name and email are required.' });
     }
     if (!req.file) {
-      return res.status(400).json({ error: 'Resume PDF is required.' });
+      return res.status(400).json({ error: 'Resume file is required.' });
     }
 
     const job = await Job.findOne({ jobId });

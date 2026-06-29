@@ -5,6 +5,21 @@ import axios from "axios";
 export default function ApplyJob() {
   const { jobId } = useParams();
   const fileRef = useRef(null);
+  const allowedResumeExtensions = [".pdf", ".docx", ".doc", ".txt", ".rtf", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"];
+  const allowedResumeTypes = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "text/plain",
+    "application/rtf",
+    "text/rtf",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/tiff",
+  ];
+  const resumeAccept = allowedResumeExtensions.join(",");
+  const resumeFormats = "PDF, DOCX, DOC, TXT, RTF, PNG, JPG, WEBP, or TIFF";
 
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,8 +39,13 @@ export default function ApplyJob() {
   }, [jobId]);
 
   const handleFile = (f) => {
-    if (f && f.type === "application/pdf") { setFile(f); setError(""); }
-    else setError("Please upload a PDF file.");
+    const extension = f?.name?.slice(f.name.lastIndexOf(".")).toLowerCase();
+    if (f && (allowedResumeTypes.includes(f.type) || allowedResumeExtensions.includes(extension))) {
+      setFile(f);
+      setError("");
+    } else {
+      setError(`Please upload your resume as ${resumeFormats}.`);
+    }
   };
 
   const handleDrop = (e) => {
@@ -36,7 +56,7 @@ export default function ApplyJob() {
   const handleSubmit = async () => {
     if (!form.fullName.trim()) { setError("Please enter your full name."); return; }
     if (!form.email.trim()) { setError("Please enter your email."); return; }
-    if (!file) { setError("Please attach your resume (PDF)."); return; }
+    if (!file) { setError(`Please attach your resume (${resumeFormats}).`); return; }
     setSubmitting(true); setError("");
     try {
       const fd = new FormData();
@@ -174,7 +194,7 @@ export default function ApplyJob() {
 
               {/* Drop zone */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Resume (PDF) <span className="text-blue-400">*</span></label>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Resume <span className="text-blue-400">*</span></label>
                 <div
                   onClick={() => fileRef.current?.click()}
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -186,7 +206,7 @@ export default function ApplyJob() {
                     : "border-slate-700 hover:border-slate-600"
                   }`}
                 >
-                  <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
+                  <input ref={fileRef} type="file" accept={resumeAccept} className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
                   {file ? (
                     <div>
                       <div className="text-green-400 text-xl mb-1">✓</div>
@@ -197,7 +217,7 @@ export default function ApplyJob() {
                     <div>
                       <div className="text-2xl mb-1">📄</div>
                       <p className="text-slate-300 text-sm font-medium">Drop your resume here</p>
-                      <p className="text-slate-500 text-xs mt-0.5">or click to browse · PDF only</p>
+                      <p className="text-slate-500 text-xs mt-0.5">or click to browse · {resumeFormats}</p>
                     </div>
                   )}
                 </div>

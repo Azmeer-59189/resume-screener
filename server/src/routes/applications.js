@@ -8,7 +8,7 @@ const appController = require('../controllers/applicationController');
 router.post(
   '/jobs/:jobId/apply',
   upload.single('resume'),
-  upload.validatePdfSignature,
+  upload.validateResumeFile,
   appController.applyToJob
 );
 

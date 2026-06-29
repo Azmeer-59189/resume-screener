@@ -1,6 +1,6 @@
 # ResumeAI - AI Resume Screener
 
-ResumeAI is a full-stack recruitment application that lets recruiters publish jobs, share public application links, parse uploaded PDF resumes, and rank candidates against job requirements. It also includes an optional Python LangGraph hiring-agent service for AI job enrichment, AI-verified scoring, bias review, and interview-question generation.
+ResumeAI is a full-stack recruitment application that lets recruiters publish jobs, share public application links, parse uploaded resumes, and rank candidates against job requirements. It supports PDF, DOCX, DOC, TXT, RTF, and image-based CV uploads. It also includes an optional Python LangGraph hiring-agent service for AI job enrichment, AI-verified scoring, bias review, and interview-question generation.
 
 Candidates do not need an account. They open a job link, enter their contact details, and upload a CV. Recruiters can then review ranked applications, inspect score reasoning, download resumes, and update application statuses.
 
@@ -10,7 +10,7 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Job posting and shareable public application links
 - AI job enrichment for sparse posts such as `MERN Stack Developer`
 - Account-free candidate application form
-- PDF text extraction and chunking
+- Resume text extraction and chunking for PDF, Word, text, RTF, and image files
 - Transparent `0-100` candidate scoring with AI-verified evidence
 - Required-skill and semantic-evidence score breakdown
 - Matched and missing skills
@@ -24,10 +24,21 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Application shortlisting and rejection
 - Recruiter-approved shortlist and rejection emails
 - Recruiter search, score filters, notes, status tracking, and CSV export
-- Application deadline enforcement and PDF signature validation
+- Application deadline enforcement and resume file signature validation
 - Safe job deletion with related application, resume, file, and vector cleanup
 - Automatic local re-scoring after job requirement updates
 - MongoDB storage with resumes grouped by job
+
+## Supported CV uploads
+
+Candidate applications accept resume files up to 10 MB in these formats:
+
+- PDF, including scanned or image-heavy PDFs through OCR fallback
+- DOCX and DOC
+- TXT and RTF
+- PNG, JPG, WEBP, and TIFF images
+
+For PDFs, the backend first tries normal text extraction with Poppler and `pdf-parse`. If the PDF has too little extractable text, it renders the first pages as images and reads them with Tesseract.js OCR. The number of OCR pages is controlled by `RESUME_OCR_MAX_PAGES`, which defaults to `3`.
 
 ## Technology
 
@@ -46,7 +57,7 @@ Candidates do not need an account. They open a job link, enter their contact det
 - MongoDB and Mongoose
 - JWT and bcrypt
 - Multer
-- `pdf-parse` and Poppler
+- `pdf-parse`, Poppler, Mammoth, Word Extractor, Sharp, and Tesseract.js OCR fallback
 - Google Gemini
 - Pinecone
 
@@ -141,7 +152,7 @@ Collections:
 | --- | --- |
 | `users` | Recruiter accounts and internal candidate contact records |
 | `jobs` | Job descriptions, requirements, skills, and status |
-| `resumes` | PDF location, parsed text, chunks, and readable job identifiers |
+| `resumes` | Resume file location, parsed text, chunks, and readable job identifiers |
 | `applications` | Job-to-candidate relationship, score, reasoning, bias review, interview questions, and recruiter status |
 
 Resume records include `jobId` and `jobTitle`, making them easy to filter in MongoDB Compass:
@@ -156,7 +167,7 @@ Requirements:
 
 - Node.js 18 or newer
 - MongoDB running locally
-- Poppler available for PDF extraction
+- Poppler available for PDF extraction and rendering scanned PDFs for OCR
 - Python 3.11 or 3.12 for the optional hiring-agent service
 - Groq API key or local Ollama for LLM-powered enrichment and scoring
 - Gemini and Pinecone credentials for optional legacy semantic analysis
@@ -184,6 +195,7 @@ MONGODB_URI=mongodb://localhost:27017/resume_screener_hiring_portal
 JWT_SECRET=replace_with_a_long_random_secret
 REFRESH_TOKEN_SECRET=replace_with_a_different_long_random_secret
 CLIENT_URL=http://localhost:5173
+RESUME_OCR_MAX_PAGES=3
 
 GEMINI_API_KEY=your_gemini_api_key_here
 PINECONE_API_KEY=your_pinecone_api_key_here
@@ -373,8 +385,8 @@ The backend also exposes `GET /health` for deployment health checks.
 
 ## Current limitations
 
-- Uploaded PDFs are stored on the local server filesystem.
-- Scanned-image CVs may require a complete OCR fallback.
+- Uploaded resume files are stored on the local server filesystem.
+- OCR quality depends on image resolution, language, orientation, and scan clarity.
 - Hiring-agent scoring depends on the configured LLM provider when `HIRING_AGENT_USE_LLM=true`.
 - Existing applications must be reprocessed to receive the latest hiring-agent output.
 - Candidate emails require valid SMTP credentials and are only sent for recruiter-approved `shortlisted` and `rejected` status changes.
