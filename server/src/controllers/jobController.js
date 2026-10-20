@@ -6,7 +6,8 @@ const { searchSimilarChunks } = require('../services/pinecone');
 const { deleteJobVectors } = require('../services/pinecone');
 const { Application, Resume } = require('../models/Application');
 const { scoreResumeLocally } = require('../services/localScoring');
-const { enrichJobPost } = require('../services/hiringAgent');
+const { enrichJobPost, isHiringAgentConfigured } = require('../services/hiringAgent');
+const { processAIAnalysis } = require('./applicationController');
 const User = require('../models/User');
 const fs = require('fs');
 
@@ -47,7 +48,8 @@ const enrichJobInput = async payload => {
   try {
     const enriched = await enrichJobPost(normalized);
     if (!enriched) return normalized;
-    const preserveManual = process.env.HIRING_AGENT_JOB_PROFILE_MODE === 'preserve_manual';
+    // Never silently replace what the recruiter wrote unless explicitly opted in.
+    const preserveManual = process.env.HIRING_AGENT_JOB_PROFILE_MODE !== 'ai_preferred';
     const enrichedRequirements = cleanStringList(enriched.requirements);
     const enrichedRequiredSkills = cleanStringList(enriched.required_skills);
     const enrichedNiceToHave = cleanStringList(enriched.nice_to_have_skills);
@@ -84,11 +86,50 @@ const enrichJobInput = async payload => {
   }
 };
 
+// Fields that feed scoring. Edits to anything else (deadline, location, salary...)
+// must not touch existing scores.
+const SCORING_FIELDS = ['title', 'description', 'requirements', 'requiredSkills', 'niceToHaveSkills', 'experienceLevel'];
+const LIST_FIELDS = new Set(['requirements', 'requiredSkills', 'niceToHaveSkills']);
+
+const comparableValue = (field, value) => LIST_FIELDS.has(field)
+  ? cleanStringList(value).join('\n')
+  : String(value ?? '').trim();
+
+const changedScoringFields = (existing, updates) => SCORING_FIELDS.filter(field =>
+  Object.prototype.hasOwnProperty.call(updates, field)
+  && comparableValue(field, updates[field]) !== comparableValue(field, existing[field])
+);
+
+exports.changedScoringFields = changedScoringFields;
+
 const rescoreJobApplications = async job => {
-  const applications = await Application.find({ job: job._id }).populate('resume');
+  const applications = await Application.find({ job: job._id }).populate('resume candidate');
   if (!applications.length) return 0;
-  const operations = applications
-    .filter(application => application.resume?.rawText)
+  const withText = applications.filter(application => application.resume?.rawText);
+
+  // Prefer re-running the full agent pipeline so AI-verified scores aren't
+  // downgraded to keyword scores. Serverless can't run background work, so
+  // Vercel keeps the synchronous local rescore.
+  if (isHiringAgentConfigured() && !process.env.VERCEL) {
+    await Application.updateMany(
+      { _id: { $in: withText.map(application => application._id) } },
+      { $set: { isAiProcessed: false } }
+    );
+    (async () => {
+      for (const application of withText) {
+        await processAIAnalysis(
+          application._id,
+          job,
+          application.resume,
+          application.resume.chunks || [],
+          application.candidate?.fullName || application.candidate?.email || 'Candidate'
+        );
+      }
+    })().catch(error => logger.error(`Background rescore failed for job ${job.jobId}: ${error.message}`));
+    return withText.length;
+  }
+
+  const operations = withText
     .map(application => ({
       updateOne: {
         filter: { _id: application._id },
@@ -103,10 +144,6 @@ const rescoreJobApplications = async job => {
       }
     }));
   if (operations.length) await Application.bulkWrite(operations);
-  await Resume.updateMany(
-    { job: job._id },
-    { $set: { jobId: job.jobId, jobTitle: job.title } }
-  );
   return operations.length;
 };
 
@@ -193,20 +230,35 @@ exports.updateJob = async (req, res, next) => {
     if (updates.requirements) updates.requirements = cleanStringList(updates.requirements);
     if (updates.requiredSkills) updates.requiredSkills = cleanStringList(updates.requiredSkills);
     if (updates.niceToHaveSkills) updates.niceToHaveSkills = cleanStringList(updates.niceToHaveSkills);
-    Object.assign(updates, await enrichJobInput(updates));
     if (typeof updates.title === 'string') updates.title = updates.title.trim();
     if (typeof updates.description === 'string') updates.description = updates.description.trim();
+
+    const existing = await Job.findOne({ _id: req.params.id, recruiter: req.user._id });
+    if (!existing) return res.status(404).json({ error: 'Job not found.' });
+
+    const changedFields = changedScoringFields(existing, updates);
+    if (changedFields.length) {
+      // Enrich from the full merged job so fields omitted from a partial update aren't blanked.
+      const merged = Object.fromEntries(SCORING_FIELDS.map(field => [
+        field,
+        Object.prototype.hasOwnProperty.call(updates, field) ? updates[field] : existing[field]
+      ]));
+      Object.assign(updates, await enrichJobInput(merged));
+    }
     const validationError = validateJobInput(updates, true);
     if (validationError) return res.status(400).json({ error: validationError });
 
     const job = await Job.findOneAndUpdate(
-      { _id: req.params.id, recruiter: req.user._id },
+      { _id: existing._id, recruiter: req.user._id },
       updates,
       { new: true, runValidators: true }
     );
     if (!job) return res.status(404).json({ error: 'Job not found.' });
-    const rescoredApplications = await rescoreJobApplications(job);
-    res.json({ job, rescoredApplications });
+    if (changedFields.includes('title')) {
+      await Resume.updateMany({ job: job._id }, { $set: { jobTitle: job.title } });
+    }
+    const rescoredApplications = changedFields.length ? await rescoreJobApplications(job) : 0;
+    res.json({ job, rescoredApplications, changedFields });
   } catch (error) { next(error); }
 };
 

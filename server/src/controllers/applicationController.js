@@ -272,6 +272,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
     }).catch(() => {});
   }
 };
+exports.processAIAnalysis = processAIAnalysis;
 
 exports.getJobApplications = async (req, res, next) => {
   try {

@@ -15,15 +15,17 @@ const recommendationFor = score => {
 
 const buildJobText = job => {
   const profile = job.aiJobProfile || {};
-  const requirementsSource = Array.isArray(profile.requirements) && profile.requirements.length
-    ? profile.requirements
-    : job.requirements;
-  const requiredSkillsSource = Array.isArray(profile.required_skills) && profile.required_skills.length
-    ? profile.required_skills
-    : job.requiredSkills;
-  const niceToHaveSource = Array.isArray(profile.nice_to_have_skills) && profile.nice_to_have_skills.length
-    ? profile.nice_to_have_skills
-    : job.niceToHaveSkills;
+  // In preserve_manual mode the recruiter's own fields are what they see, so score against those.
+  const preferManual = profile.profileMode === 'preserve_manual';
+  const pick = (manual, ai) => {
+    const hasManual = Array.isArray(manual) && manual.length;
+    const hasAi = Array.isArray(ai) && ai.length;
+    if (preferManual) return hasManual ? manual : (hasAi ? ai : manual);
+    return hasAi ? ai : manual;
+  };
+  const requirementsSource = pick(job.requirements, profile.requirements);
+  const requiredSkillsSource = pick(job.requiredSkills, profile.required_skills);
+  const niceToHaveSource = pick(job.niceToHaveSkills, profile.nice_to_have_skills);
 
   const requirements = Array.isArray(requirementsSource)
     ? requirementsSource.join('\n')
@@ -37,7 +39,7 @@ const buildJobText = job => {
 
   return [
     job.title,
-    profile.description || job.description,
+    preferManual ? (job.description || profile.description) : (profile.description || job.description),
     profile.summary && `AI job profile summary: ${profile.summary}`,
     Array.isArray(profile.responsibilities) && profile.responsibilities.length
       ? `AI-inferred responsibilities:\n${profile.responsibilities.join('\n')}`
@@ -75,6 +77,12 @@ const mapPipelineResultToApplicationUpdate = result => {
   const skillScore = Math.max(0, Math.min(100, Math.round(Number(score.skill_score) || 0)));
   const matchedSkills = Array.isArray(score.matched_skills) ? score.matched_skills : [];
   const missingSkills = Array.isArray(score.missing_required_skills) ? score.missing_required_skills : [];
+  // Older agent builds don't report weights; they always used the AI 75/25 split.
+  const hasWeights = Number.isFinite(Number(score.skill_weight)) && Number.isFinite(Number(score.semantic_weight))
+    && Number(score.skill_weight) + Number(score.semantic_weight) > 0;
+  const skillWeight = hasWeights ? Math.round(Number(score.skill_weight)) : 75;
+  const contextWeight = hasWeights ? Math.round(Number(score.semantic_weight)) : 25;
+  const skillLabel = skillWeight === 75 && contextWeight === 25 ? 'AI-verified required skills' : 'required skills';
 
   return {
     matchScore,
@@ -90,14 +98,14 @@ const mapPipelineResultToApplicationUpdate = result => {
     scoreBreakdown: {
       skillScore,
       contextScore: semanticScore,
-      skillWeight: 40,
-      contextWeight: 60,
+      skillWeight,
+      contextWeight,
       matchedSkillCount: matchedSkills.length,
       totalSkillCount: matchedSkills.length + missingSkills.length,
       matchedTermCount: 0,
       totalTermCount: 0,
       matchedTerms: [],
-      formula: 'Hiring-agent AI-verified required skills 75% + semantic evidence 25%'
+      formula: `Hiring-agent ${skillLabel} ${skillWeight}% + semantic evidence ${contextWeight}%`
     },
     experienceSummary: score.reasoning || `Hiring-agent match score is ${matchScore}%.`,
     aiAnalysis: score.reasoning || `Hiring-agent match score is ${matchScore}%.`,
