@@ -364,6 +364,10 @@ New scores are produced by the hiring-agent when the Python service is running a
 
 ## Production deployment
 
+For a single Vercel project containing the frontend, Node API, and Python agent,
+see [DEPLOYMENT.md](DEPLOYMENT.md). That setup uses MongoDB GridFS for private
+resume storage and caps hosted uploads at 4 MB.
+
 The frontend sends API requests to `/api`. In production, configure the web server or hosting platform to:
 
 - Serve the built frontend from `client/dist`.

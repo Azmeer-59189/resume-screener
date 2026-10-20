@@ -1,3 +1,4 @@
+const resumeStorage = require('../services/resumeStorage');
 const Job = require('../models/Job');
 const logger = require('../utils/logger');
 const { generateEmbedding } = require('../services/gemini');
@@ -229,7 +230,7 @@ exports.deleteJob = async (req, res, next) => {
 
     const [applications, resumes] = await Promise.all([
       Application.find({ job: job._id }).select('candidate'),
-      Resume.find({ job: job._id }).select('filePath')
+      Resume.find({ job: job._id }).select('filePath storageId')
     ]);
     const candidateIds = [...new Set(applications.map(item => item.candidate.toString()))];
 
@@ -242,6 +243,7 @@ exports.deleteJob = async (req, res, next) => {
     await Promise.allSettled(
       resumes.filter(resume => resume.filePath).map(resume => fs.promises.unlink(resume.filePath))
     );
+    await Promise.all(resumes.filter(resume => resume.storageId).map(resume => resumeStorage.remove(resume.storageId)));
     await deleteJobVectors(job._id.toString());
 
     for (const candidateId of candidateIds) {
@@ -272,8 +274,8 @@ exports.matchJob = async (req, res, next) => {
 
     const jobEmbedding = await generateEmbedding(jobText);
 
-    // Search globally across indexed resume chunks
-    const matches = await searchSimilarChunks(jobEmbedding, null, 500);
+    // Restrict evidence to this recruiter's job.
+    const matches = await searchSimilarChunks(jobEmbedding, job._id.toString(), 500);
 
     // Aggregate scores by candidateId
     const agg = {};
@@ -298,7 +300,7 @@ exports.matchJob = async (req, res, next) => {
     const results = [];
     for (const c of top) {
       const user = await User.findById(c.candidateId).select('fullName email');
-      const resume = await Resume.findOne({ candidate: c.candidateId }).sort({ processedAt: -1 });
+      const resume = await Resume.findOne({ candidate: c.candidateId, job: job._id }).sort({ processedAt: -1 });
       results.push({
         candidateId: c.candidateId,
         candidate: user || null,

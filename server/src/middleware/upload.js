@@ -3,7 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-const uploadDir = path.join(__dirname, '../../uploads/resumes');
+const uploadDir = process.env.VERCEL
+  ? path.join(require('os').tmpdir(), 'resume-uploads')
+  : path.join(__dirname, '../../uploads/resumes');
 fs.mkdirSync(uploadDir, { recursive: true });
 
 const allowedExtensions = new Set(['.pdf', '.docx', '.doc', '.txt', '.rtf', '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff']);
@@ -147,7 +149,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: (process.env.VERCEL ? 4 : 10) * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const extension = getFileExtension(file.originalname);
     if (allowedExtensions.has(extension) || allowedMimeTypes.has(file.mimetype)) cb(null, true);

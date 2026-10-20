@@ -1,0 +1,6 @@
+# Lightweight Vercel Python runtime; local embedding models are intentionally excluded.
+fastapi==0.115.6
+pydantic==2.10.5
+langgraph==0.2.62
+requests==2.32.3
+pypdf==5.1.0

@@ -8,6 +8,7 @@ const resumeSchema = new mongoose.Schema({
   jobTitle: { type: String, required: true },
   originalFileName: { type: String },
   filePath: { type: String },
+  storageId: { type: mongoose.Schema.Types.ObjectId },
   rawText: { type: String },
   chunks: [{ text: String, index: Number }],
   pineconeIds: [{ type: String }],  // vector IDs stored in Pinecone

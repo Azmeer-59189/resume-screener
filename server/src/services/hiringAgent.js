@@ -1,3 +1,9 @@
+const agentBaseUrl = () => (process.env.HIRING_AGENT_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/agent` : '')).replace(/\/$/, '');
+const agentHeaders = () => ({
+  'Content-Type': 'application/json',
+  ...(process.env.AGENT_INTERNAL_SECRET ? { 'X-Agent-Secret': process.env.AGENT_INTERNAL_SECRET } : {}),
+  ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET ? { 'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET } : {})
+});
 const DEFAULT_TIMEOUT_MS = 30000;
 
 const recommendationFor = score => {
@@ -117,7 +123,7 @@ const runHiringAgentPipeline = async ({
   useLlm = false,
   useEmbeddings = false
 }) => {
-  const baseUrl = (process.env.HIRING_AGENT_URL || '').replace(/\/$/, '');
+  const baseUrl = agentBaseUrl();
   if (!baseUrl) return null;
 
   const controller = new AbortController();
@@ -129,7 +135,7 @@ const runHiringAgentPipeline = async ({
   try {
     const response = await fetch(`${baseUrl}/api/pipeline/run`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: agentHeaders(),
       signal: controller.signal,
       body: JSON.stringify({
         jd_text: buildJobText(job),
@@ -157,7 +163,7 @@ const runHiringAgentPipeline = async ({
 };
 
 const enrichJobPost = async jobDraft => {
-  const baseUrl = (process.env.HIRING_AGENT_URL || '').replace(/\/$/, '');
+  const baseUrl = agentBaseUrl();
   if (!baseUrl) return null;
 
   const controller = new AbortController();
@@ -169,7 +175,7 @@ const enrichJobPost = async jobDraft => {
   try {
     const response = await fetch(`${baseUrl}/api/jobs/enrich`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: agentHeaders(),
       signal: controller.signal,
       body: JSON.stringify({
         title: jobDraft.title || '',
@@ -192,7 +198,7 @@ const enrichJobPost = async jobDraft => {
   }
 };
 
-const isHiringAgentConfigured = () => Boolean((process.env.HIRING_AGENT_URL || '').trim());
+const isHiringAgentConfigured = () => Boolean(agentBaseUrl());
 
 module.exports = {
   buildJobText,

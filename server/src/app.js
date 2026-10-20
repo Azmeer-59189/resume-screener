@@ -15,6 +15,7 @@ const logger = require('./utils/logger');
 const openapiDocument = require('./docs/openapi');
 
 const app = express();
+if (process.env.VERCEL) app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 // Security
@@ -94,5 +95,5 @@ const startServer = async () => {
   }
 };
 
-startServer();
+if (require.main === module) startServer();
 module.exports = app;

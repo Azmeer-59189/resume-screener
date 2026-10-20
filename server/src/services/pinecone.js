@@ -36,7 +36,7 @@ exports.storeEmbeddings = async (candidateId, jobId, chunks, embeddings) => {
 };
 
 // Search for relevant resume chunks matching a job description
-exports.searchSimilarChunks = async (jobEmbedding, jobId = null, topK = 10) => {
+exports.searchSimilarChunks = async (jobEmbedding, jobId = null, topK = 10, candidateId = null) => {
   try {
     const idx = await getIndex();
     const queryObj = {
@@ -48,6 +48,7 @@ exports.searchSimilarChunks = async (jobEmbedding, jobId = null, topK = 10) => {
     // If a jobId is provided, apply a filter to restrict results to that job's indexed vectors.
     // Otherwise perform a global search across all indexed resume chunks.
     if (jobId) queryObj.filter = { jobId };
+    if (candidateId) queryObj.filter = { ...queryObj.filter, candidateId };
 
     const results = await idx.query(queryObj);
 
