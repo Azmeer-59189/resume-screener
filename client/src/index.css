@@ -1,2 +1,40 @@
-@import "tailwindcss";
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-[#0D1B2A] text-slate-200 antialiased;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-feature-settings: "cv11", "ss01";
+    background-image:
+      radial-gradient(60rem 30rem at 85% -10%, rgba(59, 130, 246, 0.08), transparent 60%),
+      radial-gradient(40rem 24rem at -10% 10%, rgba(99, 102, 241, 0.05), transparent 60%);
+    background-attachment: fixed;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-blue-500/70 ring-offset-2 ring-offset-[#0D1B2A];
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-[#111D2C]/90 border border-slate-800 rounded-xl;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 hover:bg-slate-800/50 px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-40;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs gap-1;
+  }
+  .input {
+    @apply px-3 py-2 bg-[#111D2C] border border-slate-800 rounded-lg text-sm text-white placeholder-slate-500 focus:border-blue-500/60 transition-colors;
+  }
+}

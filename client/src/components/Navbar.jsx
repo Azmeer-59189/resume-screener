@@ -95,6 +95,25 @@ export default function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile nav: the desktop links are hidden below md */}
+      {user && (
+        <div className="md:hidden border-t border-slate-800 px-4 py-2 flex gap-1 overflow-x-auto">
+          {links.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-all ${
+                isActive(link.to)
+                  ? "bg-blue-500/15 text-blue-400"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
     </nav>
   );
 }
