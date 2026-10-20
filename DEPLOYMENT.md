@@ -1,5 +1,21 @@
 # One-project Vercel deployment
 
+## Live deployment
+
+- App: https://resume-screener-henna-ten.vercel.app/
+- Backend health: https://resume-screener-henna-ten.vercel.app/health
+- API documentation: https://resume-screener-henna-ten.vercel.app/api-docs
+- Production branch: `main`
+
+Set `CLIENT_URL=https://resume-screener-henna-ten.vercel.app` in Vercel and
+redeploy after changing environment variables. Leave `HIRING_AGENT_URL` unset
+so the Node API calls the Python function in the same deployment.
+
+Pushes to `main` trigger production deployments when the Git integration is enabled.
+The frontend install explicitly includes development dependencies so Vite is
+available even when `NODE_ENV=production`. Keep the commands in `vercel.json`;
+remove conflicting dashboard overrides.
+
 This repository serves React, Express, and the Python hiring pipeline through one
 Vercel project. MongoDB Atlas remains external and stores both records and private
 resume files (GridFS). No separate Python host or storage account is required.

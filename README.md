@@ -1,5 +1,12 @@
 # ResumeAI - AI Resume Screener
 
+**Live demo:** [resume-screener-henna-ten.vercel.app](https://resume-screener-henna-ten.vercel.app/)
+
+The hosted demo uses one Vercel project for the React frontend, Node API, and
+Python hiring agent, with MongoDB Atlas for records and private resume storage.
+Hosted resume uploads are limited to **4 MB**; use text-based PDFs, DOCX, or TXT
+for the most reliable demo experience. See [deployment instructions](DEPLOYMENT.md).
+
 ResumeAI is a full-stack recruitment application that lets recruiters publish jobs, share public application links, parse uploaded resumes, and rank candidates against job requirements. It supports PDF, DOCX, DOC, TXT, RTF, and image-based CV uploads. It also includes an optional Python LangGraph hiring-agent service for AI job enrichment, AI-verified scoring, bias review, and interview-question generation.
 
 Candidates do not need an account. They open a job link, enter their contact details, and upload a CV. Recruiters can then review ranked applications, inspect score reasoning, download resumes, and update application statuses.
