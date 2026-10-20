@@ -5,7 +5,10 @@
   "buildCommand": "VITE_MAX_RESUME_MB=4 npm run build",
   "outputDirectory": "client/dist",
   "functions": {
-    "api/index.js": { "maxDuration": 300 },
+    "api/index.js": {
+      "maxDuration": 300,
+      "includeFiles": "{server/node_modules/@napi-rs/canvas*/**,server/node_modules/pdf-parse/**,server/node_modules/pdfjs-dist/**}"
+    },
     "api/agent.py": {
       "maxDuration": 300,
       "includeFiles": "hiring-agent/backend/**",

@@ -1,4 +1,3 @@
-const { PDFParse } = require('pdf-parse');
 const { Poppler } = require('node-poppler');
 const { createWorker } = require('tesseract.js');
 const mammoth = require('mammoth');
@@ -167,9 +166,12 @@ async function tryPoppler(filePath) {
 }
 
 async function tryPdfParse(buffer) {
+  let pdfParser;
   try {
+    // Load native PDF dependencies only when a PDF is actually being parsed.
+    const { PDFParse } = require('pdf-parse');
     const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-    const pdfParser = new PDFParse(uint8);
+    pdfParser = new PDFParse({ data: uint8 });
     const parsed = await pdfParser.getText();
     let text = parsed?.text?.trim() || '';
     
@@ -184,6 +186,8 @@ async function tryPdfParse(buffer) {
   } catch (error) {
     logger.warn(`pdf-parse failed: ${error.message}`);
     return '';
+  } finally {
+    if (pdfParser) await pdfParser.destroy().catch(() => {});
   }
 }
 
