@@ -1,7 +1,7 @@
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require('node:crypto');
 
 const uploadDir = process.env.VERCEL
   ? path.join(require('os').tmpdir(), 'resume-uploads')
