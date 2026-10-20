@@ -9,6 +9,14 @@ from backend.utils.embeddings import semantic_similarity
 from backend.utils.json_tools import extract_json_object
 from backend.utils.llm import call_configured_llm
 
+# Score weights (percent). The AI path trusts verified skill evidence more;
+# the fallback path leans on semantic similarity because skill matching is
+# exact-string only.
+AI_SKILL_WEIGHT = 75
+AI_SEMANTIC_WEIGHT = 25
+FALLBACK_SKILL_WEIGHT = 40
+FALLBACK_SEMANTIC_WEIGHT = 60
+
 
 class CandidateScore(BaseModel):
     """The structured score we produce for each candidate."""
@@ -18,6 +26,8 @@ class CandidateScore(BaseModel):
     score: int = Field(default=0, ge=0, le=100)
     semantic_score: int = Field(default=0, ge=0, le=100)
     skill_score: int = Field(default=0, ge=0, le=100)
+    skill_weight: int = Field(default=0, ge=0, le=100)
+    semantic_weight: int = Field(default=0, ge=0, le=100)
     matched_skills: list[str] = Field(default_factory=list)
     missing_required_skills: list[str] = Field(default_factory=list)
     reasoning: str = Field(default="")
@@ -118,7 +128,9 @@ def score_candidate(
     semantic_score = round(max(0.0, min(similarity, 1.0)) * 100)
     skill_score, matched_skills, missing_skills = calculate_skill_match(jd, resume)
 
-    final_score = round((semantic_score * 0.60) + (skill_score * 0.40))
+    final_score = round(
+        (semantic_score * FALLBACK_SEMANTIC_WEIGHT + skill_score * FALLBACK_SKILL_WEIGHT) / 100
+    )
     reasoning = (
         f"Semantic match is {semantic_score}/100. "
         f"Skill match is {skill_score}/100 with {len(matched_skills)} matched skills "
@@ -131,6 +143,8 @@ def score_candidate(
         score=final_score,
         semantic_score=semantic_score,
         skill_score=skill_score,
+        skill_weight=FALLBACK_SKILL_WEIGHT,
+        semantic_weight=FALLBACK_SEMANTIC_WEIGHT,
         matched_skills=matched_skills,
         missing_required_skills=missing_skills,
         reasoning=reasoning,
@@ -188,7 +202,9 @@ def _stable_score_from_evidence(
         use_model=use_embeddings,
     )
     semantic_score = round(max(0.0, min(semantic_similarity_score, 1.0)) * 100)
-    final_score = round((skill_score * 0.75) + (semantic_score * 0.25))
+    final_score = round(
+        (skill_score * AI_SKILL_WEIGHT + semantic_score * AI_SEMANTIC_WEIGHT) / 100
+    )
 
     reasoning = (
         f"AI verified {len(matched_skills)} of {len(target_skills)} required skills. "
@@ -202,6 +218,8 @@ def _stable_score_from_evidence(
         score=final_score,
         semantic_score=semantic_score,
         skill_score=skill_score,
+        skill_weight=AI_SKILL_WEIGHT,
+        semantic_weight=AI_SEMANTIC_WEIGHT,
         matched_skills=matched_skills,
         missing_required_skills=missing_skills,
         reasoning=reasoning,

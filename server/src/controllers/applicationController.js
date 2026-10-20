@@ -1,3 +1,4 @@
+const resumeStorage = require('../services/resumeStorage');
 const { Application, Resume } = require('../models/Application');
 const Job = require('../models/Job');
 const User = require('../models/User');
@@ -12,10 +13,13 @@ const fs = require('fs');
 const path = require('path');
 
 const removeUpload = filePath => {
-  if (filePath) fs.promises.unlink(filePath).catch(() => {});
+  return filePath ? fs.promises.unlink(filePath).catch(() => {}) : Promise.resolve();
 };
 
 exports.applyToJob = async (req, res, next) => {
+  let storageId;
+  let savedResume;
+  let applicationSaved = false;
   try {
     const { jobId } = req.params;
     const { fullName, email, coverLetter } = req.body;
@@ -95,17 +99,22 @@ exports.applyToJob = async (req, res, next) => {
       }
       : scoreResumeLocally(job, cleanedText);
 
+    storageId = process.env.VERCEL
+      ? await resumeStorage.store(req.file.path, req.file.originalname)
+      : undefined;
     const resume = await Resume.create({
       candidate: candidate._id,
       job: job._id,
       jobId: job.jobId,
       jobTitle: job.title,
       originalFileName: req.file.originalname,
-      filePath: req.file.path,
+      filePath: storageId ? undefined : req.file.path,
+      storageId,
       rawText: cleanedText,
       chunks
     });
 
+    savedResume = resume;
     const application = await Application.create({
       job: job._id,
       candidate: candidate._id,
@@ -116,21 +125,25 @@ exports.applyToJob = async (req, res, next) => {
       ...baseline
     });
 
+    applicationSaved = true;
     await Job.findByIdAndUpdate(job._id, { $inc: { totalApplications: 1 } });
 
-    processAIAnalysis(application._id, job, resume, chunks, fullName)
-      .catch(error => logger.error(`Background AI processing failed: ${error.message}`));
+    if (storageId) await removeUpload(req.file.path);
+    const analysis = processAIAnalysis(application._id, job, resume, chunks, fullName);
+    if (process.env.VERCEL) await analysis;
+    else analysis.catch(error => logger.error(`Background AI processing failed: ${error.message}`));
 
     res.status(201).json({
       message: 'Application submitted successfully.',
       applicationId: application._id,
       baselineScore: shouldWaitForAgentScore ? null : baseline.matchScore,
-      aiProcessingQueued: shouldWaitForAgentScore
+      aiProcessingQueued: !process.env.VERCEL && shouldWaitForAgentScore
     });
   } catch (error) {
-    if (req.file?.path) {
-      const storedResume = await Resume.exists({ filePath: req.file.path });
-      if (!storedResume) removeUpload(req.file.path);
+    if (!applicationSaved) {
+      if (savedResume) await Resume.deleteOne({ _id: savedResume._id }).catch(() => {});
+      if (storageId) await resumeStorage.remove(storageId).catch(() => {});
+      await removeUpload(req.file?.path);
     }
     next(error);
   }
@@ -163,7 +176,12 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
         return;
       }
     } catch (agentError) {
+      if (process.env.VERCEL) throw agentError;
       logger.warn(`Hiring Agent unavailable; falling back to existing AI processing: ${agentError.message}`);
+    }
+
+    if (process.env.VERCEL) {
+      throw new Error('Hiring Agent returned no score; using local scoring.');
     }
 
     const embeddings = [];
@@ -200,7 +218,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
       : (job.requirements || '');
     const jobText = `${job.title} ${job.description} ${requirementsText} ${(job.requiredSkills || []).join(' ')}`;
     const jobEmbedding = await generateEmbedding(jobText);
-    const relevantChunks = await searchSimilarChunks(jobEmbedding, job._id.toString(), 8);
+    const relevantChunks = await searchSimilarChunks(jobEmbedding, job._id.toString(), 8, resume.candidate.toString());
     const chunkTexts = relevantChunks.length
       ? relevantChunks.map(chunk => chunk.text)
       : chunks.slice(0, 5).map(chunk => chunk.text);
@@ -254,6 +272,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
     }).catch(() => {});
   }
 };
+exports.processAIAnalysis = processAIAnalysis;
 
 exports.getJobApplications = async (req, res, next) => {
   try {
@@ -280,6 +299,9 @@ exports.downloadResume = async (req, res, next) => {
     if (!application) return res.status(404).json({ error: 'Application not found.' });
     if (application.job.recruiter.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Not authorized.' });
+    }
+    if (application.resume?.storageId) {
+      return resumeStorage.download(application.resume.storageId, application.resume.originalFileName, res, next);
     }
     if (!application.resume?.filePath || !fs.existsSync(application.resume.filePath)) {
       return res.status(404).json({ error: 'Resume file not found.' });
@@ -377,14 +399,16 @@ exports.reprocessApplication = async (req, res, next) => {
       return res.status(403).json({ error: 'Not authorized.' });
     }
 
-    processAIAnalysis(
+    const analysis = processAIAnalysis(
       application._id,
       application.job,
       application.resume,
       application.resume.chunks || [],
       application.candidate?.fullName || application.candidate?.email || 'Candidate'
-    ).catch(error => logger.error(`Reprocess AI failed: ${error.message}`));
+    );
+    if (process.env.VERCEL) await analysis;
+    else analysis.catch(error => logger.error(`Reprocess AI failed: ${error.message}`));
 
-    res.json({ message: 'Reprocessing started in background.' });
+    res.json({ message: process.env.VERCEL ? 'Reprocessing completed.' : 'Reprocessing started in background.' });
   } catch (error) { next(error); }
 };

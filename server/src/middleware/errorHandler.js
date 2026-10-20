@@ -3,6 +3,10 @@ const logger = require('../utils/logger');
 module.exports = (err, req, res, next) => {
   logger.error(err.message || 'Unknown error');
 
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: `Resume must be under ${process.env.VERCEL ? 4 : 10} MB.` });
+  }
+
   if (err.name === 'ValidationError') {
     return res.status(400).json({ error: err.message });
   }

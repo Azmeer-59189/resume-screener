@@ -26,3 +26,9 @@ server/inspect*.js
 .idea/
 .DS_Store
 Thumbs.db
+
+# Deployment and local dependency cache
+.vercel/
+.npm-cache/
+__pycache__/
+.venv-deploy/

@@ -57,11 +57,32 @@ def call_ollama(prompt: str, model: str = "llama3.2:3b") -> str:
     return data.get("response", "")
 
 
-def call_groq(prompt: str, model: str = "llama-3.1-8b-instant") -> str:
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+
+
+def call_groq(prompt: str, model: str = DEFAULT_GROQ_MODEL) -> str:
     """Call Groq's OpenAI-compatible chat completion API."""
     api_key = get_env("GROQ_API_KEY")
     if not api_key:
         raise ValueError("GROQ_API_KEY is missing.")
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "Return only valid JSON. Do not add markdown.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0,
+        "top_p": 1,
+        "max_completion_tokens": 1400,
+    }
+    # gpt-oss models reason before answering, and reasoning tokens count against
+    # max_completion_tokens; keep it short so the JSON answer isn't truncated.
+    if model.startswith("openai/gpt-oss"):
+        payload["reasoning_effort"] = "low"
 
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -69,19 +90,7 @@ def call_groq(prompt: str, model: str = "llama-3.1-8b-instant") -> str:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
-        json={
-            "model": model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "Return only valid JSON. Do not add markdown.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0,
-            "top_p": 1,
-            "max_completion_tokens": 1400,
-        },
+        json=payload,
         timeout=120,
     )
     response.raise_for_status()
@@ -99,7 +108,7 @@ def call_configured_llm(prompt: str) -> str:
     provider = get_env("LLM_PROVIDER", "ollama").lower()
 
     if provider == "groq":
-        model = get_env("LLM_MODEL", "llama-3.1-8b-instant")
+        model = get_env("LLM_MODEL", DEFAULT_GROQ_MODEL)
         return call_groq(prompt, model=model)
 
     model = get_env("LLM_MODEL", "llama3.2:3b")

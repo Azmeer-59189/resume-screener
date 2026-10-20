@@ -78,11 +78,12 @@ Use this option if your laptop cannot install or run Ollama.
 ```powershell
 $env:LLM_PROVIDER="groq"
 $env:GROQ_API_KEY="your_groq_api_key_here"
-$env:LLM_MODEL="llama-3.1-8b-instant"
+$env:LLM_MODEL="openai/gpt-oss-120b"
 ```
 
-We use `llama-3.1-8b-instant` because Groq lists it as a production model and
-it is lightweight enough for fast development.
+We use `openai/gpt-oss-120b` because it returns reliable JSON and stays fast on
+Groq (about a second per call). `openai/gpt-oss-20b` is a lighter alternative.
+`llama-3.1-8b-instant` has been retired by Groq and now returns `model_not_found`.
 
 ### Option B: Local Ollama
 

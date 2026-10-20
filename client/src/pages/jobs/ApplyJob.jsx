@@ -18,6 +18,7 @@ export default function ApplyJob() {
     "image/webp",
     "image/tiff",
   ];
+  const maxResumeMb = Number(import.meta.env.VITE_MAX_RESUME_MB) || 10;
   const resumeAccept = allowedResumeExtensions.join(",");
   const resumeFormats = "PDF, DOCX, DOC, TXT, RTF, PNG, JPG, WEBP, or TIFF";
 
@@ -39,6 +40,11 @@ export default function ApplyJob() {
   }, [jobId]);
 
   const handleFile = (f) => {
+    if (f && f.size > maxResumeMb * 1024 * 1024) {
+      setFile(null);
+      setError(`Resume must be under ${maxResumeMb} MB.`);
+      return;
+    }
     const extension = f?.name?.slice(f.name.lastIndexOf(".")).toLowerCase();
     if (f && (allowedResumeTypes.includes(f.type) || allowedResumeExtensions.includes(extension))) {
       setFile(f);
@@ -217,7 +223,7 @@ export default function ApplyJob() {
                     <div>
                       <div className="text-2xl mb-1">📄</div>
                       <p className="text-slate-300 text-sm font-medium">Drop your resume here</p>
-                      <p className="text-slate-500 text-xs mt-0.5">or click to browse · {resumeFormats}</p>
+                      <p className="text-slate-500 text-xs mt-0.5">or click to browse · {resumeFormats} · Max {maxResumeMb} MB</p>
                     </div>
                   )}
                 </div>

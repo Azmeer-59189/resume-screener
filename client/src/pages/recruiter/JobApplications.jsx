@@ -1,47 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-
-const STATUS_CONFIG = {
-  applied:     { label: "Applied",     cls: "bg-slate-500/10 text-slate-400 border-slate-700" },
-  reviewing:   { label: "Reviewing",   cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  shortlisted: { label: "Shortlisted", cls: "bg-green-500/10 text-green-400 border-green-500/20" },
-  interviewed: { label: "Interviewed", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
-  offered:     { label: "Offered",     cls: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
-  rejected:    { label: "Rejected",    cls: "bg-red-500/10 text-red-400 border-red-500/20" },
-};
+import Icon from "../../components/Icon";
+import { ChartCard, HorizontalBars, TierColumns } from "../../components/charts/Charts";
+import { SCORE_TIERS, tierForScore } from "../../components/charts/theme";
+import { PageHeader, ScoreRing, Spinner, StatTile, StatusBadge, STATUS_CONFIG } from "../../components/ui";
 
 const APPLICATION_STATUSES = Object.keys(STATUS_CONFIG);
+const MAX_COVERAGE_SKILLS = 10;
 
-function ScoreBar({ score, pending }) {
-  if (pending) {
-    return (
-      <div className="flex items-center gap-2.5">
-        <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-blue-500 rounded-full animate-pulse" />
-        </div>
-        <span className="text-xs font-bold text-blue-400 whitespace-nowrap">AI pending</span>
-      </div>
-    );
-  }
-
-  const pct = Math.max(0, Math.min(100, Math.round(Number(score) || 0)));
-  const color = pct >= 75 ? "bg-green-500" : pct >= 50 ? "bg-blue-500" : pct >= 30 ? "bg-amber-500" : "bg-red-500";
-  return (
-    <div className="flex items-center gap-2.5">
-      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className={`text-xs font-bold tabular-nums ${
-        pct >= 75 ? "text-green-400" : pct >= 50 ? "text-blue-400" : pct >= 30 ? "text-amber-400" : "text-red-400"
-      }`}>{pct}%</span>
-    </div>
-  );
-}
+const isPendingAi = (app) => app.scoringMethod === "agent" && !app.isAiProcessed;
 
 function DetailList({ title, items, tone }) {
   if (!items?.length) return null;
-  const color = tone === "positive" ? "text-green-400" : "text-amber-400";
+  const color = tone === "positive" ? "text-emerald-400" : "text-amber-400";
   return (
     <div>
       <h4 className={`text-xs font-semibold uppercase tracking-wide ${color}`}>{title}</h4>
@@ -57,9 +29,41 @@ function DetailList({ title, items, tone }) {
   );
 }
 
+/** Describe the second score component by what the scorer actually measured. */
+function contextComponent(app, breakdown) {
+  if (app.scoringMethod === "local") {
+    return {
+      title: "Job context terms",
+      detail: `${breakdown.matchedTermCount ?? 0} of ${breakdown.totalTermCount ?? 0} role terms found in the CV`,
+    };
+  }
+  if (app.scoringMethod === "agent") {
+    return {
+      title: "Overall similarity",
+      detail: "How closely the CV's overall content matches the job description",
+    };
+  }
+  return { title: "Job context", detail: null };
+}
+
+function BreakdownTile({ title, weight, score, detail }) {
+  return (
+    <div className="rounded-lg bg-[#0D1B2A] border border-slate-800 p-3">
+      <div className="flex justify-between text-xs">
+        <span className="text-slate-400">{title} <span className="text-slate-500">· {weight ?? 0}% weight</span></span>
+        <span className="text-white font-semibold tabular-nums">{score ?? 0}%</span>
+      </div>
+      <div className="mt-2 h-1 rounded-full bg-blue-500/15 overflow-hidden">
+        <div className="h-full rounded-full bg-[#3987e5]" style={{ width: `${Math.max(0, Math.min(100, score ?? 0))}%` }} />
+      </div>
+      {detail && <p className="text-slate-500 text-xs mt-2">{detail}</p>}
+    </div>
+  );
+}
+
 function ScoreReasoning({ app }) {
   const breakdown = app.scoreBreakdown;
-  const pendingAi = app.scoringMethod === "agent" && !app.isAiProcessed;
+  const pendingAi = isPendingAi(app);
   const methodLabel = app.scoringMethod === "ai"
     ? "AI assessment"
     : app.scoringMethod === "vector"
@@ -67,16 +71,17 @@ function ScoreReasoning({ app }) {
       : app.scoringMethod === "agent"
         ? "Hiring Agent pipeline"
         : "Local evidence score";
+  const context = breakdown ? contextComponent(app, breakdown) : null;
 
   return (
-    <div className="mt-4 pt-4 border-t border-slate-800">
+    <div className="mt-5 pt-5 border-t border-slate-800">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-xs text-slate-500">Scoring method</span>
         <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
           {methodLabel}
         </span>
         {pendingAi && (
-          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/25">
             AI processing
           </span>
         )}
@@ -90,24 +95,18 @@ function ScoreReasoning({ app }) {
 
       {breakdown && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          <div className="rounded-lg bg-[#0D1B2A] border border-slate-800 p-3">
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Required skills ({breakdown.skillWeight ?? 0}% weight)</span>
-              <span className="text-white font-semibold">{breakdown.skillScore ?? 0}%</span>
-            </div>
-            <p className="text-slate-500 text-xs mt-1">
-              {breakdown.matchedSkillCount ?? 0} of {breakdown.totalSkillCount ?? 0} explicitly detected
-            </p>
-          </div>
-          <div className="rounded-lg bg-[#0D1B2A] border border-slate-800 p-3">
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Job context ({breakdown.contextWeight ?? 0}% weight)</span>
-              <span className="text-white font-semibold">{breakdown.contextScore ?? 0}%</span>
-            </div>
-            <p className="text-slate-500 text-xs mt-1">
-              {breakdown.matchedTermCount ?? 0} of {breakdown.totalTermCount ?? 0} role terms detected
-            </p>
-          </div>
+          <BreakdownTile
+            title="Required skills"
+            weight={breakdown.skillWeight}
+            score={breakdown.skillScore}
+            detail={`${breakdown.matchedSkillCount ?? 0} of ${breakdown.totalSkillCount ?? 0} explicitly detected`}
+          />
+          <BreakdownTile
+            title={context.title}
+            weight={breakdown.contextWeight}
+            score={breakdown.contextScore}
+            detail={context.detail}
+          />
           <p className="sm:col-span-2 text-xs text-slate-500">{breakdown.formula}</p>
         </div>
       )}
@@ -129,21 +128,13 @@ function ScoreReasoning({ app }) {
           <div>
             <p className="text-xs text-slate-500 mb-2">Matched required skills</p>
             <div className="flex flex-wrap gap-1.5">
-              {app.matchedSkills?.map(skill => (
-                <span key={skill} className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">
-                  {skill}
-                </span>
-              ))}
+              {app.matchedSkills?.map((skill) => <SkillChip key={skill} skill={skill} matched />)}
             </div>
           </div>
           <div>
             <p className="text-xs text-slate-500 mb-2">Missing or not demonstrated</p>
             <div className="flex flex-wrap gap-1.5">
-              {app.missingSkills?.map(skill => (
-                <span key={skill} className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                  {skill}
-                </span>
-              ))}
+              {app.missingSkills?.map((skill) => <SkillChip key={skill} skill={skill} />)}
             </div>
           </div>
         </div>
@@ -161,8 +152,8 @@ function ScoreReasoning({ app }) {
             <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-400">Bias review</h4>
             <span className={`text-xs px-2 py-0.5 rounded border ${
               app.biasFlags.has_bias_risk
-                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                : "bg-green-500/10 text-green-400 border-green-500/20"
+                ? "bg-amber-500/10 text-amber-300 border-amber-500/25"
+                : "bg-emerald-500/10 text-emerald-300 border-emerald-500/25"
             }`}>
               {app.biasFlags.has_bias_risk ? "Review needed" : "No obvious risk"}
             </span>
@@ -183,7 +174,7 @@ function ScoreReasoning({ app }) {
 
       {app.interviewQuestions?.[0]?.questions?.length > 0 && (
         <div className="mt-4 rounded-lg bg-[#0D1B2A] border border-slate-800 p-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-purple-400">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-violet-400">
             Suggested interview questions
           </h4>
           <ol className="mt-2 space-y-2">
@@ -206,6 +197,41 @@ function ScoreReasoning({ app }) {
       )}
     </div>
   );
+}
+
+function SkillChip({ skill, matched }) {
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border ${
+      matched
+        ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25"
+        : "bg-amber-500/10 text-amber-300 border-amber-500/25"
+    }`}>
+      <Icon name={matched ? "check" : "x"} className="w-3 h-3" strokeWidth={2.5} />
+      {skill}
+    </span>
+  );
+}
+
+/** Per-skill share of scored candidates who demonstrated it, from what the scorers evaluated. */
+function buildSkillCoverage(scoredApps) {
+  const skills = new Map();
+  const tally = (skill, matched) => {
+    const key = String(skill).trim().toLowerCase();
+    if (!key) return;
+    const entry = skills.get(key) || { label: String(skill).trim(), matched: 0, evaluated: 0 };
+    entry.evaluated += 1;
+    if (matched) entry.matched += 1;
+    skills.set(key, entry);
+  };
+  for (const app of scoredApps) {
+    (app.matchedSkills || []).forEach((skill) => tally(skill, true));
+    (app.missingSkills || []).forEach((skill) => tally(skill, false));
+  }
+  return [...skills.values()]
+    .sort((a, b) => b.evaluated - a.evaluated)
+    .slice(0, MAX_COVERAGE_SKILLS)
+    .map((entry) => ({ ...entry, value: Math.round((entry.matched / entry.evaluated) * 100) }))
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }
 
 export default function JobApplications() {
@@ -243,6 +269,28 @@ export default function JobApplications() {
     };
     load();
   }, [jobId]);
+
+  const overview = useMemo(() => {
+    const scoredApps = applications.filter((app) => !isPendingAi(app) && app.matchScore != null);
+    const scored = scoredApps.length;
+    const average = scored
+      ? Math.round(scoredApps.reduce((sum, app) => sum + Number(app.matchScore || 0), 0) / scored)
+      : null;
+    const tiers = SCORE_TIERS.map((tier) => {
+      const value = scoredApps.filter((app) => tierForScore(app.matchScore).key === tier.key).length;
+      return { ...tier, value, share: scored ? Math.round((value / scored) * 100) : null };
+    });
+    const goodOrBetter = scoredApps.filter((app) => Number(app.matchScore) >= 70).length;
+    return {
+      scored,
+      average,
+      tiers,
+      goodOrBetter,
+      pending: applications.length - scored,
+      shortlisted: applications.filter((app) => app.status === "shortlisted").length,
+      coverage: buildSkillCoverage(scoredApps),
+    };
+  }, [applications]);
 
   const updateStatus = async (appId, status, recruiterNotes = notes[appId]) => {
     const currentApplication = applications.find((app) => app._id === appId);
@@ -307,6 +355,11 @@ export default function JobApplications() {
     return matchesStatus && matchesSearch && matchesScore;
   });
 
+  const statusCounts = applications.reduce((counts, app) => {
+    counts[app.status] = (counts[app.status] || 0) + 1;
+    return counts;
+  }, {});
+
   const exportCsv = () => {
     const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const rows = [
@@ -331,63 +384,124 @@ export default function JobApplications() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) return <Spinner />;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <Link to="/recruiter/jobs" className="text-slate-500 hover:text-slate-300 text-sm transition-colors flex items-center gap-1 mb-3">
-          ← My Jobs
-        </Link>
-        <h1 className="text-2xl font-bold text-white">{job?.title || "Job Applications"}</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          {applications.length} candidate{applications.length !== 1 ? "s" : ""} · ranked by AI match score
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={
+          <Link to="/recruiter/jobs" className="text-slate-500 hover:text-slate-300 text-sm transition-colors inline-flex items-center gap-1 mb-3">
+            <Icon name="arrowLeft" className="w-3.5 h-3.5" /> My jobs
+          </Link>
+        }
+        title={job?.title || "Job applications"}
+        subtitle={`${applications.length} candidate${applications.length !== 1 ? "s" : ""} · ranked by match score`}
+        actions={
+          <button onClick={exportCsv} disabled={!filtered.length} className="btn-secondary">
+            <Icon name="download" className="w-4 h-4" /> Export CSV
+          </button>
+        }
+      />
+
+      {/* Overview */}
+      {applications.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <StatTile
+              label="Candidates"
+              value={applications.length}
+              icon="users"
+              hint={overview.pending ? `${overview.pending} awaiting AI score` : "All scored"}
+            />
+            <StatTile
+              label="Average match"
+              value={overview.average != null ? `${overview.average}%` : "—"}
+              icon="target"
+              hint={overview.scored ? `${overview.scored} scored` : "No scores yet"}
+            />
+            <StatTile
+              label="Good or strong matches"
+              value={overview.goodOrBetter}
+              icon="sparkles"
+              hint="Score 70 or higher"
+            />
+            <StatTile
+              label="Shortlisted"
+              value={overview.shortlisted}
+              icon="star"
+              hint={`${Math.round((overview.shortlisted / applications.length) * 100)}% of candidates`}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+            <ChartCard
+              title="Match quality"
+              subtitle="Scored candidates by recommendation tier"
+              empty={!overview.scored}
+              emptyText="Scores will appear once applications are processed"
+              table={{
+                columns: ["Tier", "Score range", "Candidates", "Share"],
+                rows: overview.tiers.map((tier) => [tier.label, tier.range, tier.value, `${tier.share ?? 0}%`]),
+              }}
+            >
+              <TierColumns data={overview.tiers} ariaLabel="Candidates for this job by recommendation tier" />
+            </ChartCard>
+
+            <ChartCard
+              title="Required skill coverage"
+              subtitle="Share of scored candidates who demonstrate each skill"
+              empty={!overview.coverage.length}
+              emptyText="No skill evaluations yet"
+              table={{
+                columns: ["Skill", "Candidates with it", "Coverage"],
+                rows: overview.coverage.map((row) => [row.label, `${row.matched} of ${row.evaluated}`, `${row.value}%`]),
+              }}
+            >
+              <HorizontalBars
+                data={overview.coverage}
+                max={100}
+                ariaLabel="Required skill coverage across candidates"
+                formatValue={(value) => `${value}%`}
+                tooltipValue={(value, row) => `${value}% · ${row.matched} of ${row.evaluated} candidates`}
+              />
+            </ChartCard>
+          </div>
+        </>
+      )}
 
       {statusMessage && (
         <div className={`mb-5 px-4 py-3 rounded-lg border text-sm ${
           statusMessage.type === "success"
-            ? "bg-green-500/10 border-green-500/20 text-green-400"
+            ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-300"
             : statusMessage.type === "warning"
-              ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-              : "bg-red-500/10 border-red-500/20 text-red-400"
+              ? "bg-amber-500/10 border-amber-500/25 text-amber-300"
+              : "bg-rose-500/10 border-rose-500/25 text-rose-300"
         }`}>
           {statusMessage.text}
         </div>
       )}
 
-      <div className="mb-6 space-y-3">
-        <div className="flex flex-wrap gap-2">
+      {/* Filters: one row above the list they scope */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Icon name="search" className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search name, email, or skill"
-            className="min-w-64 px-3 py-2 bg-[#111D2C] border border-slate-800 rounded-lg text-sm text-white placeholder-slate-500"
+            className="input pl-9 w-72"
           />
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={minimumScore}
-            onChange={(event) => setMinimumScore(event.target.value)}
-            placeholder="Minimum score"
-            className="w-40 px-3 py-2 bg-[#111D2C] border border-slate-800 rounded-lg text-sm text-white placeholder-slate-500"
-          />
-          <button
-            onClick={exportCsv}
-            disabled={!filtered.length}
-            className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg text-sm hover:text-white disabled:opacity-40"
-          >
-            Export CSV
-          </button>
         </div>
-        <div className="flex flex-wrap gap-1 p-1 bg-[#111D2C] border border-slate-800 rounded-lg w-fit">
+        <input
+          type="number"
+          min="0"
+          max="100"
+          value={minimumScore}
+          onChange={(event) => setMinimumScore(event.target.value)}
+          placeholder="Minimum score"
+          className="input w-36"
+        />
+        <div className="flex flex-wrap gap-1 p-1 card">
           {["all", ...APPLICATION_STATUSES].map((f) => (
             <button
               key={f}
@@ -397,76 +511,74 @@ export default function JobApplications() {
               }`}
             >
               {f}
+              <span className={`ml-1.5 text-xs ${filter === f ? "text-blue-100" : "text-slate-500"}`}>
+                {f === "all" ? applications.length : statusCounts[f] || 0}
+              </span>
             </button>
           ))}
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-[#111D2C] border border-slate-800 rounded-xl p-16 text-center">
+        <div className="card p-16 text-center">
           <p className="text-slate-400">No applications {filter !== "all" ? `with status "${filter}"` : "yet"}.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((app, i) => {
-            const sc = STATUS_CONFIG[app.status] || STATUS_CONFIG.applied;
-            const pendingAi = app.scoringMethod === "agent" && !app.isAiProcessed;
+            const pendingAi = isPendingAi(app);
+            const matchedPreview = (app.matchedSkills || []).slice(0, 4);
+            const missingPreview = (app.missingSkills || []).slice(0, 3);
             return (
-              <div key={app._id} className="bg-[#111D2C] border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
-                <div className="flex items-start gap-4">
-                  {/* Rank */}
-                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-xs font-bold shrink-0 mt-0.5">
-                    {i + 1}
-                  </div>
+              <div key={app._id} className="card p-5 hover:border-slate-700 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <ScoreRing score={app.matchScore} pending={pendingAi} />
 
                   {/* Candidate info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-slate-500 tabular-nums">#{i + 1}</span>
                       <h3 className="text-white font-semibold">
                         {app.candidate?.fullName || "Unknown Candidate"}
                       </h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border ${sc.cls}`}>
-                        {sc.label}
-                      </span>
-                      {pendingAi && (
-                        <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20">
-                          AI processing
-                        </span>
-                      )}
+                      <StatusBadge status={app.status} />
                     </div>
                     <p className="text-slate-400 text-sm mt-0.5">{app.candidate?.email}</p>
 
-                    {/* Score bar */}
-                    <div className="mt-3 max-w-xs">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-slate-500">Match Score</span>
+                    {(matchedPreview.length > 0 || missingPreview.length > 0) && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {matchedPreview.map((skill) => <SkillChip key={`m-${skill}`} skill={skill} matched />)}
+                        {missingPreview.map((skill) => <SkillChip key={`x-${skill}`} skill={skill} />)}
+                        {(app.matchedSkills?.length || 0) + (app.missingSkills?.length || 0) > matchedPreview.length + missingPreview.length && (
+                          <span className="text-xs text-slate-500 self-center">
+                            +{(app.matchedSkills?.length || 0) + (app.missingSkills?.length || 0) - matchedPreview.length - missingPreview.length} more
+                          </span>
+                        )}
                       </div>
-                      <ScoreBar score={app.matchScore ?? 0} pending={pendingAi} />
-                    </div>
+                    )}
 
                     <button
-                      onClick={() => setExpanded(current => ({ ...current, [app._id]: !current[app._id] }))}
+                      onClick={() => setExpanded((current) => ({ ...current, [app._id]: !current[app._id] }))}
                       className="mt-3 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                      aria-expanded={Boolean(expanded[app._id])}
                     >
                       {expanded[app._id] ? "Hide score reasoning" : "Why this score?"}
                     </button>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex flex-col gap-2 shrink-0">
+                  <div className="flex flex-wrap gap-2 shrink-0 sm:grid sm:grid-cols-2 sm:w-60">
                     {app.resume && (
-                      <button
-                        onClick={() => downloadResume(app)}
-                        className="text-xs px-3 py-1.5 border border-slate-700 text-slate-300 rounded-lg hover:border-slate-600 hover:text-white transition-all text-center"
-                      >
-                        📄 Resume
+                      <button onClick={() => downloadResume(app)} className="btn-secondary btn-sm">
+                        <Icon name="document" className="w-3.5 h-3.5" /> Resume
                       </button>
                     )}
                     <select
                       value={app.status}
                       onChange={(event) => updateStatus(app._id, event.target.value)}
                       disabled={updating === app._id}
-                      className="text-xs px-2 py-1.5 bg-[#0D1B2A] border border-slate-700 text-slate-300 rounded-lg capitalize"
+                      className="text-xs px-2 py-1.5 bg-[#0D1B2A] border border-slate-700 text-slate-300 rounded-lg"
+                      aria-label="Application status"
                     >
                       {APPLICATION_STATUSES.map((status) => (
                         <option key={status} value={status}>{STATUS_CONFIG[status].label}</option>
@@ -475,16 +587,16 @@ export default function JobApplications() {
                     <button
                       onClick={() => updateStatus(app._id, "shortlisted")}
                       disabled={updating === app._id || app.status === "shortlisted"}
-                      className="text-xs px-3 py-1.5 bg-green-500/15 text-green-400 border border-green-500/20 rounded-lg hover:bg-green-500/25 transition-all disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-1 text-xs px-3 py-1.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 rounded-lg hover:bg-emerald-500/25 transition-all disabled:opacity-40"
                     >
-                      ✓ Shortlist
+                      <Icon name="check" className="w-3.5 h-3.5" strokeWidth={2} /> Shortlist
                     </button>
                     <button
                       onClick={() => updateStatus(app._id, "rejected")}
                       disabled={updating === app._id || app.status === "rejected"}
-                      className="text-xs px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-all disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-1 text-xs px-3 py-1.5 bg-rose-500/10 text-rose-300 border border-rose-500/25 rounded-lg hover:bg-rose-500/20 transition-all disabled:opacity-40"
                     >
-                      ✗ Reject
+                      <Icon name="x" className="w-3.5 h-3.5" strokeWidth={2} /> Reject
                     </button>
                   </div>
                 </div>
@@ -500,12 +612,12 @@ export default function JobApplications() {
                         onChange={(event) => setNotes((current) => ({ ...current, [app._id]: event.target.value }))}
                         rows={3}
                         placeholder="Add interview observations or follow-up notes..."
-                        className="mt-2 w-full px-3 py-2 bg-[#0D1B2A] border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 resize-y"
+                        className="input mt-2 w-full resize-y"
                       />
                       <button
                         onClick={() => updateStatus(app._id, app.status, notes[app._id])}
                         disabled={updating === app._id}
-                        className="mt-2 px-3 py-1.5 bg-blue-500/15 text-blue-400 border border-blue-500/20 rounded-lg text-xs disabled:opacity-50"
+                        className="mt-2 px-3 py-1.5 bg-blue-500/15 text-blue-300 border border-blue-500/25 rounded-lg text-xs disabled:opacity-50"
                       >
                         Save notes
                       </button>

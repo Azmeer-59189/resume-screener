@@ -1,0 +1,8 @@
+{
+  "name": "resumeai-deployment",
+  "private": true,
+  "engines": { "node": "24.x" },
+  "scripts": {
+    "build": "npm --prefix client run build"
+  }
+}

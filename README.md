@@ -208,11 +208,11 @@ HIRING_AGENT_USE_LLM=true
 HIRING_AGENT_USE_EMBEDDINGS=false
 HIRING_AGENT_ENRICH_JOBS=true
 HIRING_AGENT_ENRICH_JOBS_USE_LLM=true
-HIRING_AGENT_JOB_PROFILE_MODE=ai_preferred
+HIRING_AGENT_JOB_PROFILE_MODE=preserve_manual
 HIRING_AGENT_SHOW_BASELINE=false
 
 LLM_PROVIDER=groq
-LLM_MODEL=llama-3.1-8b-instant
+LLM_MODEL=openai/gpt-oss-120b
 ```
 
 Start the API:
@@ -363,6 +363,10 @@ POST /api/applications/{id}/reprocess
 New scores are produced by the hiring-agent when the Python service is running and `HIRING_AGENT_USE_LLM=true`.
 
 ## Production deployment
+
+For a single Vercel project containing the frontend, Node API, and Python agent,
+see [DEPLOYMENT.md](DEPLOYMENT.md). That setup uses MongoDB GridFS for private
+resume storage and caps hosted uploads at 4 MB.
 
 The frontend sends API requests to `/api`. In production, configure the web server or hosting platform to:
 

@@ -9,7 +9,9 @@ const os = require('os');
 const path = require('path');
 const logger = require('../utils/logger');
 
-const poppler = new Poppler();
+let poppler;
+try { poppler = new Poppler(); }
+catch (error) { logger.warn(`Poppler unavailable; using PDF text extraction: ${error.message}`); }
 const MIN_EXTRACTED_TEXT_LENGTH = 20;
 const DEFAULT_OCR_MAX_PAGES = 3;
 const OCR_RENDER_DPI = 220;
@@ -211,7 +213,7 @@ async function tryOcr(filePath) {
 
     if (!imagePaths.length) return '';
 
-    worker = await createWorker('eng', 1, { logger: () => {} });
+    worker = await createWorker('eng', 1, { logger: () => {}, cachePath: os.tmpdir() });
     const pages = [];
 
     for (const imagePath of imagePaths) {
@@ -252,7 +254,7 @@ async function tryImageOcr(filePath) {
       .png()
       .toFile(imagePath);
 
-    worker = await createWorker('eng', 1, { logger: () => {} });
+    worker = await createWorker('eng', 1, { logger: () => {}, cachePath: os.tmpdir() });
     const result = await worker.recognize(imagePath);
     const text = result?.data?.text?.trim() || '';
     if (text) logger.info(`Image OCR extracted ${text.length} characters`);

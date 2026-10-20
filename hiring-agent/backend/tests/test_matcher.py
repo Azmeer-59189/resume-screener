@@ -86,4 +86,20 @@ def test_stable_ai_evidence_scoring_does_not_use_llm_numeric_score() -> None:
     assert "AI verified" in score.reasoning
 
 
+def test_scores_report_the_weights_actually_used() -> None:
+    fallback = score_candidate(SAMPLE_JD, GOOD_RESUME, use_embeddings=False)
+    ai = _stable_score_from_evidence(
+        SAMPLE_JD,
+        GOOD_RESUME,
+        AiSkillEvidence(matched_skills=["python"]),
+        use_embeddings=False,
+    )
+
+    assert (fallback.skill_weight, fallback.semantic_weight) == (40, 60)
+    assert (ai.skill_weight, ai.semantic_weight) == (75, 25)
+    assert ai.score == round(
+        (ai.skill_score * ai.skill_weight + ai.semantic_score * ai.semantic_weight) / 100
+    )
+
+
 # NEXT STEP: Run pytest, then decide whether to add ChromaDB now or continue to Agent 4.

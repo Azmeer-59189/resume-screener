@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
@@ -6,11 +7,14 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import RecruiterDashboard from "./pages/recruiter/Dashboard";
 import PostJob from "./pages/recruiter/PostJob";
 import MyJobs from "./pages/recruiter/MyJobs";
-import JobApplications from "./pages/recruiter/JobApplications";
 import ApplyJob from "./pages/jobs/ApplyJob";
+import { Spinner } from "./components/ui";
+
+// Chart pages pull in recharts; load them on demand so the public apply page stays light.
+const RecruiterDashboard = lazy(() => import("./pages/recruiter/Dashboard"));
+const JobApplications = lazy(() => import("./pages/recruiter/JobApplications"));
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -25,9 +29,10 @@ function AppRoutes() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A]">
+    <div className="min-h-screen">
       <Navbar />
-      <div className="pt-16">
+      <div className={user ? "pt-[113px] md:pt-16" : "pt-16"}>
+        <Suspense fallback={<Spinner />}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={
@@ -60,6 +65,7 @@ function AppRoutes() {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </div>
     </div>
   );

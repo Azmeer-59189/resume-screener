@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci --prefix client && npm ci --prefix server",
+  "buildCommand": "VITE_MAX_RESUME_MB=4 npm run build",
+  "outputDirectory": "client/dist",
+  "functions": {
+    "api/index.js": { "maxDuration": 300 },
+    "api/agent.py": {
+      "maxDuration": 300,
+      "includeFiles": "hiring-agent/backend/**",
+      "excludeFiles": "{client/**,server/**,hiring-agent/frontend/**,hiring-agent/backend/tests/**}"
+    }
+  },
+  "routes": [
+    { "src": "/agent/(.*)", "dest": "/api/agent.py" },
+    { "src": "/api/agent(?:/.*)?", "dest": "/api/agent.py" },
+    { "src": "/api(?:/.*)?", "dest": "/api/index.js" },
+    { "src": "/health", "dest": "/api/index.js" },
+    { "src": "/api-docs(?:/.*)?", "dest": "/api/index.js" },
+    { "handle": "filesystem" },
+    { "src": "/.*", "dest": "/index.html" }
+  ]
+}

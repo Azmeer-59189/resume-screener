@@ -42,6 +42,38 @@ test('prefers AI job profile skills over manual required skills', () => {
   assert.doesNotMatch(text, /Wrong Manual Skill/);
 });
 
+test('scores against the recruiter fields when the job preserves manual input', () => {
+  const text = buildJobText({
+    title: 'MERN Stack Developer',
+    description: 'Recruiter-written description',
+    requirements: ['Recruiter requirement'],
+    requiredSkills: ['GraphQL'],
+    niceToHaveSkills: [],
+    aiJobProfile: {
+      profileMode: 'preserve_manual',
+      description: 'AI enriched MERN role.',
+      required_skills: ['MongoDB', 'Express'],
+      nice_to_have_skills: ['Docker']
+    }
+  });
+
+  assert.match(text, /Recruiter-written description/);
+  assert.match(text, /Required skills: GraphQL/);
+  assert.doesNotMatch(text, /AI enriched MERN role/);
+  // Empty manual list still falls back to the AI profile.
+  assert.match(text, /Nice to have: Docker/);
+});
+
+test('uses the weights reported by the agent in the score breakdown', () => {
+  const update = mapPipelineResultToApplicationUpdate({
+    scores: [{ score: 60, semantic_score: 70, skill_score: 45, skill_weight: 40, semantic_weight: 60 }]
+  });
+
+  assert.equal(update.scoreBreakdown.skillWeight, 40);
+  assert.equal(update.scoreBreakdown.contextWeight, 60);
+  assert.match(update.scoreBreakdown.formula, /required skills 40% \+ semantic evidence 60%/);
+});
+
 test('maps hiring-agent pipeline output into Application update fields', () => {
   const update = mapPipelineResultToApplicationUpdate({
     jd_parsed: { title: 'Backend Engineer' },
@@ -71,6 +103,9 @@ test('maps hiring-agent pipeline output into Application update fields', () => {
   assert.deepEqual(update.matchedSkills, ['python', 'fastapi']);
   assert.deepEqual(update.missingSkills, ['sqlite']);
   assert.equal(update.scoreBreakdown.contextScore, 90);
+  // No weights reported (older agent) -> the AI path's 75/25 split.
+  assert.equal(update.scoreBreakdown.skillWeight, 75);
+  assert.equal(update.scoreBreakdown.contextWeight, 25);
   assert.equal(update.biasFlags.has_bias_risk, false);
   assert.equal(update.interviewQuestions[0].questions[0].question, 'How have you used FastAPI?');
 });
