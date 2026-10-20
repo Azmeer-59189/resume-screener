@@ -212,7 +212,7 @@ HIRING_AGENT_JOB_PROFILE_MODE=preserve_manual
 HIRING_AGENT_SHOW_BASELINE=false
 
 LLM_PROVIDER=groq
-LLM_MODEL=llama-3.1-8b-instant
+LLM_MODEL=openai/gpt-oss-120b
 ```
 
 Start the API:
