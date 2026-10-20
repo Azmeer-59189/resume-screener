@@ -9,7 +9,10 @@ import { PageHeader, ScoreRing, Spinner, StatTile, StatusBadge, STATUS_CONFIG } 
 const APPLICATION_STATUSES = Object.keys(STATUS_CONFIG);
 const MAX_COVERAGE_SKILLS = 10;
 
-const isPendingAi = (app) => app.scoringMethod === "agent" && !app.isAiProcessed;
+const analysisState = (app) => app.analysisStatus || (app.isAiProcessed ? (app.processingError ? "fallback" : "completed") : "queued");
+const isPendingAi = (app) => ["queued", "processing"].includes(analysisState(app));
+const isUnscored = (app) => ["queued", "processing", "failed", "interrupted"].includes(analysisState(app));
+const ANALYSIS_LABELS = { queued: "Queued", processing: "Analyzing resume", completed: "Analysis completed", fallback: "Score available - analysis warning", failed: "Analysis failed", interrupted: "Analysis interrupted" };
 
 function DetailList({ title, items, tone }) {
   if (!items?.length) return null;
@@ -72,6 +75,11 @@ function ScoreReasoning({ app }) {
         ? "Hiring Agent pipeline"
         : "Local evidence score";
   const context = breakdown ? contextComponent(app, breakdown) : null;
+  if (isUnscored(app)) return (
+    <p className="mt-5 border-t border-slate-800 pt-4 text-sm text-slate-300">
+      {pendingAi ? "Resume analysis is in progress. This view updates automatically." : "Analysis did not finish. Retry analysis to get an updated score."}
+    </p>
+  );
 
   return (
     <div className="mt-5 pt-5 border-t border-slate-800">
@@ -80,18 +88,11 @@ function ScoreReasoning({ app }) {
         <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
           {methodLabel}
         </span>
-        {pendingAi && (
-          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/25">
-            AI processing
-          </span>
-        )}
       </div>
 
-      {pendingAi && (
-        <p className="mb-4 text-sm text-slate-300 leading-relaxed">
-          The application is waiting for the Hiring Agent LLM score. Refresh shortly to see the verified ranking.
-        </p>
-      )}
+      {analysisState(app) === "fallback" && <p className="mb-4 text-sm text-amber-300">
+        {app.scoringMethod === "local" ? "AI analysis was unavailable. This is a local fallback score; retry analysis for an AI assessment." : "Some analysis steps did not complete. Review the result and retry if needed."}
+      </p>}
 
       {breakdown && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
@@ -110,6 +111,21 @@ function ScoreReasoning({ app }) {
           <p className="sm:col-span-2 text-xs text-slate-500">{breakdown.formula}</p>
         </div>
       )}
+
+      <div className="mb-4">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-blue-400">Resume evidence</h4>
+        <p className="mt-1 text-xs text-slate-400">Direct mentions help verify a match; they do not establish proficiency or experience.</p>
+        {!app.skillEvidence?.length && <p className="mt-2 text-xs text-slate-400">No quotations saved for this analysis. Run analysis again to collect evidence.</p>}
+        <div className="mt-3 space-y-3">
+          {(app.skillEvidence || []).map((evidence, index) => (
+            <div key={`${evidence.skill}-${index}`} className="rounded-lg border border-slate-800 bg-[#0D1B2A] p-3">
+              <p className="text-xs font-semibold text-slate-200">{evidence.skill} - {evidence.kind === "mention" ? "Direct resume mention" : "No direct mention found"}</p>
+              {evidence.excerpt ? <blockquote className="mt-2 whitespace-pre-wrap text-sm text-slate-300">{evidence.excerpt}</blockquote>
+                : <p className="mt-2 text-xs text-amber-300">The scorer inferred this match. Review the resume before relying on it.</p>}
+            </div>
+          ))}
+        </div>
+      </div>
 
       {app.aiAnalysis && (
         <div className="mb-4">
@@ -247,6 +263,7 @@ export default function JobApplications() {
   const [minimumScore, setMinimumScore] = useState("");
   const [notes, setNotes] = useState({});
   const [statusMessage, setStatusMessage] = useState(null);
+  const [retrying, setRetrying] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -268,10 +285,43 @@ export default function JobApplications() {
       }
     };
     load();
-  }, [jobId]);
+  }, [jobId, api]);
+
+  const hasPendingAnalysis = applications.some(isPendingAi);
+  useEffect(() => {
+    if (!hasPendingAnalysis) return;
+    let active = true;
+    const timer = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/applications/job/${jobId}`);
+        if (active) setApplications(data.applications || []);
+      } catch { /* Keep the last result; the next poll can recover. */ }
+    }, 20000);
+    return () => { active = false; clearInterval(timer); };
+  }, [api, jobId, hasPendingAnalysis]);
+
+  const retryAnalysis = async (application) => {
+    setRetrying(application._id);
+    setStatusMessage(null);
+    setApplications(current => current.map(item => item._id === application._id ? { ...item, analysisStatus: "processing" } : item));
+    try {
+      const attempt = await api.post(`/applications/${application._id}/reprocess`);
+      const { data } = await api.get(`/applications/job/${jobId}`);
+      setApplications(data.applications || []);
+      setStatusMessage({ type: attempt.data.analysisStatus === "completed" ? "success" : "warning", text: "Analysis attempt finished. Check the candidate's analysis status and evidence below." });
+    } catch (error) {
+      setStatusMessage({ type: "error", text: error.response?.data?.error || "The request did not finish. Refresh to check its status before retrying." });
+      try {
+        const { data } = await api.get(`/applications/job/${jobId}`);
+        setApplications(data.applications || []);
+      } catch {
+        setApplications(current => current.map(item => item._id === application._id ? { ...item, analysisStatus: "interrupted" } : item));
+      }
+    } finally { setRetrying(null); }
+  };
 
   const overview = useMemo(() => {
-    const scoredApps = applications.filter((app) => !isPendingAi(app) && app.matchScore != null);
+    const scoredApps = applications.filter((app) => !isUnscored(app) && app.matchScore != null);
     const scored = scoredApps.length;
     const average = scored
       ? Math.round(scoredApps.reduce((sum, app) => sum + Number(app.matchScore || 0), 0) / scored)
@@ -286,7 +336,7 @@ export default function JobApplications() {
       average,
       tiers,
       goodOrBetter,
-      pending: applications.length - scored,
+      pending: applications.filter(isPendingAi).length,
       shortlisted: applications.filter((app) => app.status === "shortlisted").length,
       coverage: buildSkillCoverage(scoredApps),
     };
@@ -351,7 +401,7 @@ export default function JobApplications() {
       || app.candidate?.fullName?.toLowerCase().includes(query)
       || app.candidate?.email?.toLowerCase().includes(query)
       || app.matchedSkills?.some((skill) => skill.toLowerCase().includes(query));
-    const matchesScore = minimumScore === "" || Number(app.matchScore || 0) >= Number(minimumScore);
+    const matchesScore = minimumScore === "" || (!isUnscored(app) && Number(app.matchScore || 0) >= Number(minimumScore));
     return matchesStatus && matchesSearch && matchesScore;
   });
 
@@ -368,7 +418,7 @@ export default function JobApplications() {
         index + 1,
         app.candidate?.fullName,
         app.candidate?.email,
-        Math.round(Number(app.matchScore) || 0),
+        isUnscored(app) ? ANALYSIS_LABELS[analysisState(app)] : Math.round(Number(app.matchScore) || 0),
         app.status,
         app.matchedSkills?.join("; "),
         app.missingSkills?.join("; "),
@@ -526,24 +576,25 @@ export default function JobApplications() {
       ) : (
         <div className="space-y-3">
           {filtered.map((app, i) => {
-            const pendingAi = isPendingAi(app);
             const matchedPreview = (app.matchedSkills || []).slice(0, 4);
             const missingPreview = (app.missingSkills || []).slice(0, 3);
             return (
               <div key={app._id} className="card p-5 hover:border-slate-700 transition-colors">
                 <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                  <ScoreRing score={app.matchScore} pending={pendingAi} />
+                  <ScoreRing score={app.matchScore} pending={isUnscored(app)} pendingLabel={isPendingAi(app) ? "Analyzing" : "No score"} />
 
                   {/* Candidate info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-slate-500 tabular-nums">#{i + 1}</span>
+                      <span className="text-xs font-semibold text-slate-500 tabular-nums">{isUnscored(app) ? "-" : `#${i + 1}`}</span>
                       <h3 className="text-white font-semibold">
                         {app.candidate?.fullName || "Unknown Candidate"}
                       </h3>
                       <StatusBadge status={app.status} />
+                      <span className={`text-xs ${["fallback", "failed", "interrupted"].includes(analysisState(app)) ? "text-amber-300" : "text-slate-400"}`} role="status">{ANALYSIS_LABELS[analysisState(app)]}</span>
                     </div>
                     <p className="text-slate-400 text-sm mt-0.5">{app.candidate?.email}</p>
+                    {app.processingFinishedAt && <p className="mt-1 text-xs text-slate-500">Last attempt: {new Date(app.processingFinishedAt).toLocaleString()} - {app.processingAttempts || 1} attempt(s)</p>}
 
                     {(matchedPreview.length > 0 || missingPreview.length > 0) && (
                       <div className="flex flex-wrap gap-1.5 mt-3">
@@ -568,6 +619,9 @@ export default function JobApplications() {
 
                   {/* Actions */}
                   <div className="flex flex-wrap gap-2 shrink-0 sm:grid sm:grid-cols-2 sm:w-60">
+                    <button onClick={() => retryAnalysis(app)} disabled={retrying !== null || isPendingAi(app)} className="btn-secondary btn-sm">
+                      {retrying === app._id ? "Analyzing..." : ["fallback", "failed", "interrupted"].includes(analysisState(app)) ? "Retry analysis" : "Run analysis again"}
+                    </button>
                     {app.resume && (
                       <button onClick={() => downloadResume(app)} className="btn-secondary btn-sm">
                         <Icon name="document" className="w-3.5 h-3.5" /> Resume

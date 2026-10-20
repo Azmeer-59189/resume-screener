@@ -21,6 +21,8 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Transparent `0-100` candidate scoring with AI-verified evidence
 - Required-skill and semantic-evidence score breakdown
 - Matched and missing skills
+- Analysis status, automatic refresh, and guarded retry for interrupted or failed runs
+- Exact resume quotations for directly mentioned matched skills, with inferred matches labeled separately
 - Candidate strengths, weaknesses, and score reasoning
 - Bias review with false-positive filtering for common safe terms such as tech stacks, locations, names, and normal experience requirements
 - Tailored interview questions, including gap-verification questions for weak or wrong-field CVs

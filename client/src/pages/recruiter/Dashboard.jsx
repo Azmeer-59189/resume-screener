@@ -267,7 +267,7 @@ export default function RecruiterDashboard() {
                 <StatusBadge status={app.status} />
                 <div className="w-32 hidden sm:block">
                   <ScoreMeter
-                    score={app.scoringMethod === "agent" && !app.isAiProcessed ? null : app.matchScore}
+                    score={["queued", "processing", "failed", "interrupted"].includes(app.analysisStatus) || (app.scoringMethod === "agent" && !app.isAiProcessed) ? null : app.matchScore}
                     emptyText="AI pending"
                   />
                 </div>

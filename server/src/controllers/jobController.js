@@ -1,3 +1,5 @@
+const { randomUUID } = require('node:crypto');
+const { buildSkillEvidence } = require('../services/skillEvidence');
 const resumeStorage = require('../services/resumeStorage');
 const Job = require('../models/Job');
 const logger = require('../utils/logger');
@@ -113,7 +115,7 @@ const rescoreJobApplications = async job => {
   if (isHiringAgentConfigured() && !process.env.VERCEL) {
     await Application.updateMany(
       { _id: { $in: withText.map(application => application._id) } },
-      { $set: { isAiProcessed: false } }
+      { $set: { isAiProcessed: false, processingStatus: 'queued', processingRunId: randomUUID(), processingStartedAt: new Date() } }
     );
     (async () => {
       for (const application of withText) {
@@ -136,6 +138,10 @@ const rescoreJobApplications = async job => {
         update: {
           $set: {
             ...scoreResumeLocally(job, application.resume.rawText),
+            skillEvidence: buildSkillEvidence(scoreResumeLocally(job, application.resume.rawText).matchedSkills, application.resume.rawText),
+            processingStatus: 'completed',
+            processingRunId: randomUUID(),
+            processingFinishedAt: new Date(),
             isAiProcessed: true,
             aiProcessedAt: new Date(),
             processingError: null

@@ -1,3 +1,4 @@
+const { analysisStatus } = require('../services/analysisState');
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
@@ -7,11 +8,10 @@ const { Application } = require('../models/Application');
 const TREND_DAYS = 30;
 const TOP_SKILL_GAPS = 8;
 
-// Applications still waiting on the hiring agent carry a placeholder score of 0,
-// so they are excluded from every score-based aggregate.
+// Queued, active, and failed analyses must not influence score-based aggregates.
 const scoredFilter = {
   matchScore: { $ne: null },
-  $nor: [{ scoringMethod: 'agent', isAiProcessed: false }]
+  $nor: [{ processingStatus: { $in: ['queued', 'processing', 'failed'] } }, { scoringMethod: 'agent', isAiProcessed: false }]
 };
 
 router.get('/dashboard', authenticate, authorize('recruiter'), async (req, res, next) => {
@@ -83,13 +83,13 @@ router.get('/dashboard', authenticate, authorize('recruiter'), async (req, res, 
             averageScore: {
               $avg: {
                 $cond: [
-                  { $and: [{ $ne: ['$matchScore', null] }, { $not: { $and: [{ $eq: ['$scoringMethod', 'agent'] }, { $eq: ['$isAiProcessed', false] }] } }] },
+                  { $and: [{ $not: [{ $in: ['$processingStatus', ['queued', 'processing', 'failed']] }] }, { $ne: ['$matchScore', null] }, { $not: { $and: [{ $eq: ['$scoringMethod', 'agent'] }, { $eq: ['$isAiProcessed', false] }] } }] },
                   '$matchScore',
                   null
                 ]
               }
             },
-            topScore: { $max: '$matchScore' }
+            topScore: { $max: { $cond: [{ $in: ['$processingStatus', ['queued', 'processing', 'failed']] }, null, '$matchScore'] } }
           }
         }
       ])
@@ -103,7 +103,7 @@ router.get('/dashboard', authenticate, authorize('recruiter'), async (req, res, 
       activeJobs: myJobs.filter(job => job.status === 'active').length,
       totalApplications,
       shortlisted,
-      recentApplications,
+      recentApplications: recentApplications.map(application => { const item = application.toObject(); return { ...item, analysisStatus: analysisStatus(item) }; }),
       analytics: {
         trendDays: TREND_DAYS,
         trendStart: trendStart.toISOString(),

@@ -49,6 +49,18 @@ const applicationSchema = new mongoose.Schema({
     default: 'local'
   },
   processingError: { type: String },
+  processingStatus: { type: String, enum: ['queued', 'processing', 'completed', 'fallback', 'failed'], default: 'queued' },
+  processingStartedAt: { type: Date },
+  processingFinishedAt: { type: Date },
+  processingRunId: { type: String },
+  processingAttempts: { type: Number, default: 0 },
+  skillEvidence: [{
+    skill: String,
+    kind: { type: String, enum: ['mention', 'inferred'] },
+    excerpt: String,
+    start: Number,
+    end: Number
+  }],
   hiringAgent: {
     jdParsed: { type: mongoose.Schema.Types.Mixed },
     resumesParsed: [{ type: mongoose.Schema.Types.Mixed }],

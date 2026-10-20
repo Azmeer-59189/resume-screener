@@ -1,3 +1,6 @@
+const { randomUUID } = require('node:crypto');
+const { ANALYSIS_LEASE_MS, analysisStatus } = require('../services/analysisState');
+const { buildSkillEvidence } = require('../services/skillEvidence');
 const resumeStorage = require('../services/resumeStorage');
 const { Application, Resume } = require('../models/Application');
 const Job = require('../models/Job');
@@ -73,31 +76,7 @@ exports.applyToJob = async (req, res, next) => {
     const shouldWaitForAgentScore = isHiringAgentConfigured()
       && process.env.HIRING_AGENT_USE_LLM === 'true'
       && process.env.HIRING_AGENT_SHOW_BASELINE !== 'true';
-    const baseline = shouldWaitForAgentScore
-      ? {
-        matchScore: 0,
-        matchedSkills: [],
-        missingSkills: [],
-        recommendation: 'not_suitable',
-        strengths: [],
-        weaknesses: ['AI analysis is queued. Refresh shortly to see the verified score.'],
-        scoreBreakdown: {
-          skillScore: 0,
-          contextScore: 0,
-          skillWeight: 0,
-          contextWeight: 0,
-          matchedSkillCount: 0,
-          totalSkillCount: 0,
-          matchedTermCount: 0,
-          totalTermCount: 0,
-          matchedTerms: [],
-          formula: 'Waiting for Hiring Agent AI scoring'
-        },
-        experienceSummary: 'AI analysis is queued.',
-        aiAnalysis: 'AI analysis is queued. Refresh shortly to see the verified score.',
-        scoringMethod: 'agent'
-      }
-      : scoreResumeLocally(job, cleanedText);
+    const baseline = scoreResumeLocally(job, cleanedText);
 
     storageId = process.env.VERCEL
       ? await resumeStorage.store(req.file.path, req.file.originalname)
@@ -150,6 +129,29 @@ exports.applyToJob = async (req, res, next) => {
 };
 
 const processAIAnalysis = async (applicationId, job, resume, chunks, candidateName) => {
+  const runId = randomUUID();
+  const claimed = await Application.findOneAndUpdate({
+    _id: applicationId,
+    $or: [
+      { processingStatus: { $ne: 'processing' } },
+      { processingStartedAt: { $lt: new Date(Date.now() - ANALYSIS_LEASE_MS) } },
+      { processingStartedAt: { $exists: false } }
+    ]
+  }, {
+    $set: { processingStatus: 'processing', processingStartedAt: new Date(), processingRunId: runId },
+    $inc: { processingAttempts: 1 }
+  }, { new: true });
+  if (!claimed) return { busy: true };
+  const finish = async (_id, update) => Application.findOneAndUpdate(
+    { _id: applicationId, processingRunId: runId },
+    { $set: {
+      ...(update.scoringMethod && update.scoringMethod !== 'agent' ? { hiringAgent: {}, biasFlags: null, interviewQuestions: [] } : {}),
+      ...update,
+      skillEvidence: buildSkillEvidence(update.matchedSkills || [], resume.rawText || ''),
+      processingStatus: update.processingError ? 'fallback' : 'completed',
+      processingFinishedAt: new Date()
+    } }
+  );
   try {
     logger.info(`Processing AI analysis for application ${applicationId}`);
 
@@ -167,7 +169,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
         resume.processedAt = new Date();
         await resume.save();
 
-        await Application.findByIdAndUpdate(applicationId, {
+        await finish(applicationId, {
           ...agentResult.applicationUpdate,
           isAiProcessed: true,
           aiProcessedAt: new Date()
@@ -203,7 +205,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
       await resume.save();
     } catch (embedError) {
       const baseline = scoreResumeLocally(job, resume.rawText || '');
-      await Application.findByIdAndUpdate(applicationId, {
+      await finish(applicationId, {
         ...baseline,
         isAiProcessed: true,
         aiProcessedAt: new Date(),
@@ -230,7 +232,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
         chunkTexts,
         candidateName
       ));
-      await Application.findByIdAndUpdate(applicationId, {
+      await finish(applicationId, {
         ...analysis,
         isAiProcessed: true,
         aiProcessedAt: new Date(),
@@ -243,7 +245,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
 
       if (candidateScores.length) {
         const average = candidateScores.reduce((sum, score) => sum + score, 0) / candidateScores.length;
-        await Application.findByIdAndUpdate(applicationId, {
+        await finish(applicationId, {
           matchScore: Math.max(0, Math.min(100, Math.round(average * 100))),
           scoringMethod: 'vector',
           isAiProcessed: true,
@@ -253,7 +255,7 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
         });
       } else {
         const baseline = scoreResumeLocally(job, resume.rawText || '');
-        await Application.findByIdAndUpdate(applicationId, {
+        await finish(applicationId, {
           ...baseline,
           isAiProcessed: true,
           aiProcessedAt: new Date(),
@@ -264,12 +266,14 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
   } catch (error) {
     logger.error(`AI processing failed for application ${applicationId}: ${error.message}`);
     const baseline = scoreResumeLocally(job, resume.rawText || '');
-    await Application.findByIdAndUpdate(applicationId, {
+    await finish(applicationId, {
       ...baseline,
       isAiProcessed: true,
       aiProcessedAt: new Date(),
       processingError: error.message
-    }).catch(() => {});
+    }).catch(async () => {
+      await Application.updateOne({ _id: applicationId, processingRunId: runId }, { $set: { processingStatus: 'failed', processingFinishedAt: new Date() } }).catch(() => {});
+    });
   }
 };
 exports.processAIAnalysis = processAIAnalysis;
@@ -286,9 +290,12 @@ exports.getJobApplications = async (req, res, next) => {
 
     const responseApplications = applications.map(application => {
       const item = application.toObject();
+      item.analysisStatus = analysisStatus(item);
       item.resumeUrl = item.resume ? `/api/applications/${item._id}/resume` : null;
       return item;
     });
+    const scoreReady = item => ['completed', 'fallback'].includes(item.analysisStatus);
+    responseApplications.sort((a, b) => Number(scoreReady(b)) - Number(scoreReady(a)) || (b.matchScore || 0) - (a.matchScore || 0));
     res.json({ applications: responseApplications, job });
   } catch (error) { next(error); }
 };
@@ -399,16 +406,17 @@ exports.reprocessApplication = async (req, res, next) => {
       return res.status(403).json({ error: 'Not authorized.' });
     }
 
-    const analysis = processAIAnalysis(
+    if (!application.resume?.rawText) return res.status(400).json({ error: 'Resume text is unavailable. A new resume is required.' });
+    const result = await processAIAnalysis(
       application._id,
       application.job,
       application.resume,
       application.resume.chunks || [],
       application.candidate?.fullName || application.candidate?.email || 'Candidate'
     );
-    if (process.env.VERCEL) await analysis;
-    else analysis.catch(error => logger.error(`Reprocess AI failed: ${error.message}`));
+    if (result?.busy) return res.status(409).json({ error: 'Analysis is already running. Please wait before retrying.' });
 
-    res.json({ message: process.env.VERCEL ? 'Reprocessing completed.' : 'Reprocessing started in background.' });
+    const updated = await Application.findById(application._id).lean();
+    res.json({ message: 'Analysis attempt finished.', analysisStatus: analysisStatus(updated) });
   } catch (error) { next(error); }
 };

@@ -72,7 +72,7 @@ export function ScoreMeter({ score, className = "", emptyText = "No scores yet" 
 }
 
 /** Circular score ring with the tier named underneath, so the color is never the only cue. */
-export function ScoreRing({ score, pending, size = 56 }) {
+export function ScoreRing({ score, pending, pendingLabel = "AI pending", size = 56 }) {
   const stroke = 5;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -102,7 +102,7 @@ export function ScoreRing({ score, pending, size = 56 }) {
         </span>
       </div>
       <span className="text-[11px] text-slate-400 whitespace-nowrap">
-        {pending ? "AI pending" : tier.label}
+        {pending ? pendingLabel : tier.label}
       </span>
     </div>
   );

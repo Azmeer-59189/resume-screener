@@ -68,6 +68,18 @@ before relying on email. A missing email configuration does not prevent status c
 
 ## Smoke test
 
+Analysis status is stored separately from the recruiter's application status.
+The candidate list refreshes every 20 seconds while analysis is pending. Runs
+that do not finish within six minutes are shown as interrupted and can be retried.
+Retries claim the application atomically; a newer attempt supersedes an expired
+attempt so its score cannot be overwritten by the older run. This is not a durable
+queue: manual retry is still needed after a function is terminated.
+
+Open **Why this score?** to see quotations from the extracted resume. A direct
+mention establishes that the text occurs in the document, not the candidate's
+proficiency. Matches without a direct mention are marked as inferred. Existing
+applications collect quotations when **Run analysis again** is used.
+
 - `/health` returns HTTP 200 and `/agent/health` returns HTTP 401 without its secret.
 - Register a recruiter, create a job, and open its application link in incognito.
 - Apply with a text PDF under 4 MB. Keep the tab open: analysis is awaited within
