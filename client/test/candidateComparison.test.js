@@ -21,6 +21,13 @@ test('unassessed skills are not presented as missing skills', () => {
   assert.equal(skillAssessment(app, 'Docker'), 'Not assessed');
 });
 
+test('comparison aligns equivalent job and resume skill labels', () => {
+  const app = { analysisStatus: 'completed', matchedSkills: ['JavaScript'], missingSkills: [] };
+  assert.equal(skillAssessment(app, 'JS'), 'Matched');
+  assert.equal(comparisonSkills(['JS'], [app]).length, 1);
+  assert.equal(skillAssessment(app, 'Java'), 'Not assessed');
+});
+
 test('failed or pending analyses never expose old skill assessments as current', () => {
   for (const analysisStatus of ['queued', 'processing', 'failed', 'interrupted']) {
     const app = { analysisStatus, matchScore: 99, matchedSkills: ['Python'] };

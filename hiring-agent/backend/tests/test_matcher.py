@@ -103,3 +103,20 @@ def test_scores_report_the_weights_actually_used() -> None:
 
 
 # NEXT STEP: Run pytest, then decide whether to add ChromaDB now or continue to Agent 4.
+
+
+def test_aliases_match_in_fallback_and_ai_evidence() -> None:
+    jd = {"required_skills": ["JS", "JavaScript", "NodeJS"]}
+    resume = {"skills": ["JavaScript", "Node.js"], "summary": "JavaScript and Node.js developer"}
+    local = score_candidate(jd, resume, use_embeddings=False)
+    assert local.skill_score == 100
+    assert local.missing_required_skills == []
+    ai = _stable_score_from_evidence(jd, resume, AiSkillEvidence(matched_skills=["JavaScript", "Node.js"]), use_embeddings=False)
+    assert ai.skill_score == 100
+    assert len(ai.matched_skills) == 2
+    assert ai.missing_required_skills == []
+
+
+def test_java_is_not_javascript() -> None:
+    score = score_candidate({"required_skills": ["Java"]}, {"skills": ["JavaScript"]}, use_embeddings=False)
+    assert score.skill_score == 0

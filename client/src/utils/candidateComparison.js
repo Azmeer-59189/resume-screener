@@ -1,7 +1,11 @@
+import groups from '../../../shared/skillAliases.json' with { type: 'json' };
 export const MAX_COMPARISON = 3;
 export const analysisState = app => app.analysisStatus || (app.isAiProcessed ? (app.processingError ? 'fallback' : 'completed') : 'queued');
 export const isScoreReady = app => ['completed', 'fallback'].includes(analysisState(app));
-const normalize = value => String(value).trim().toLowerCase();
+const normalize = value => {
+  const key = String(value).trim().toLowerCase();
+  return groups.find(group => group.includes(key))?.[0] || key;
+};
 
 export function toggleCandidate(ids, id) {
   if (ids.includes(id)) return ids.filter(value => value !== id);
@@ -23,3 +27,5 @@ export function skillAssessment(app, skill) {
   if (app.missingSkills?.some(value => normalize(value) === key)) return 'Not demonstrated';
   return 'Not assessed';
 }
+
+export const matchingEvidence = (app, skill) => app.skillEvidence?.find(item => normalize(item.skill) === normalize(skill));

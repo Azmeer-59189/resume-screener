@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { StatusBadge } from './ui';
-import { comparisonSkills, skillAssessment, isScoreReady, analysisState } from '../utils/candidateComparison';
+import { comparisonSkills, skillAssessment, isScoreReady, analysisState, matchingEvidence } from '../utils/candidateComparison';
 
 const methodName = { agent: 'Hiring agent', local: 'Local score', ai: 'AI assessment', vector: 'Vector similarity' };
 
@@ -53,7 +53,7 @@ export default function CandidateComparison({ applications, requiredSkills, onCl
               <th scope="row" className="p-4 text-left text-xs text-slate-400 align-top break-words">{skill}</th>
               {applications.map(app => {
                 const assessment = skillAssessment(app, skill);
-                const evidence = isScoreReady(app) ? app.skillEvidence?.find(item => item.skill?.trim().toLowerCase() === skill.trim().toLowerCase()) : null;
+                const evidence = isScoreReady(app) ? matchingEvidence(app, skill) : null;
                 return <td key={app._id} className="p-4 align-top text-xs">
                   <p className={assessment === 'Matched' ? 'text-emerald-300' : assessment === 'Not demonstrated' ? 'text-amber-300' : 'text-slate-400'}>{assessment}</p>
                   {assessment === 'Matched' && (evidence?.excerpt ? <details className="mt-2 text-slate-400">

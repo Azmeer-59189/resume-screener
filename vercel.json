@@ -7,11 +7,11 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 300,
-      "includeFiles": "{server/node_modules/@napi-rs/canvas*/**,server/node_modules/pdf-parse/**,server/node_modules/pdfjs-dist/**}"
+      "includeFiles": "{server/node_modules/@napi-rs/canvas*/**,server/node_modules/pdf-parse/**,server/node_modules/pdfjs-dist/**,shared/**}"
     },
     "api/agent.py": {
       "maxDuration": 300,
-      "includeFiles": "hiring-agent/backend/**",
+      "includeFiles": "{hiring-agent/backend/**,shared/**}",
       "excludeFiles": "{client/**,server/**,hiring-agent/frontend/**,hiring-agent/backend/tests/**}"
     }
   },

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 from backend.utils.json_tools import extract_json_object
 from backend.utils.llm import call_configured_llm
 from backend.utils.skill_inference import expand_skills
+from backend.utils.skill_aliases import skill_present
 
 
 class ParsedResume(BaseModel):
@@ -82,7 +83,7 @@ def _find_known_skills(text: str) -> list[str]:
         "git",
     ]
     lower_text = text.lower()
-    found_skills = [skill for skill in known_skills if skill in lower_text]
+    found_skills = [skill for skill in known_skills if skill_present(skill, text)]
     return expand_skills(found_skills, text)
 
 

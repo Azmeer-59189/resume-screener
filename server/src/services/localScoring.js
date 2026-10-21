@@ -1,4 +1,5 @@
 const { expandSkills, enrichTextWithInferredSkills } = require('./skillInference');
+const { skillPattern } = require('./skillAliases');
 
 const STOP_WORDS = new Set([
   'and', 'the', 'for', 'with', 'that', 'this', 'from', 'your', 'you', 'our',
@@ -42,7 +43,6 @@ const displayTerm = term => ({
 
 exports.scoreResumeLocally = (job, resumeText) => {
   const enrichedResumeText = enrichTextWithInferredSkills(resumeText);
-  const normalizedResume = ` ${normalize(enrichedResumeText)} `;
   const jobContextText = [
     job.title,
     job.description,
@@ -52,7 +52,7 @@ exports.scoreResumeLocally = (job, resumeText) => {
   ].filter(Boolean).join(' ');
   const requiredSkills = expandSkills(job.requiredSkills, jobContextText);
   const matchedSkills = requiredSkills.filter(skill =>
-    normalizedResume.includes(` ${normalize(skill)} `)
+    skillPattern(skill).test(enrichedResumeText)
   );
   const missingSkills = requiredSkills.filter(skill => !matchedSkills.includes(skill));
 

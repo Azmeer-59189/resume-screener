@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 from backend.utils.embeddings import semantic_similarity
 from backend.utils.json_tools import extract_json_object
 from backend.utils.llm import call_configured_llm
+from backend.utils.skill_aliases import canonical_skill
 
 # Score weights (percent). The AI path trusts verified skill evidence more;
 # the fallback path leans on semantic similarity because skill matching is
@@ -43,7 +44,7 @@ class AiSkillEvidence(BaseModel):
 
 def _normalize_skill(skill: str) -> str:
     """Normalize skills so Python and python compare as the same skill."""
-    return skill.strip().lower()
+    return canonical_skill(skill)
 
 
 def _looks_like_skill(value: str) -> bool:
@@ -243,6 +244,9 @@ Return ONLY valid JSON with this shape:
 Rules:
 - Use the job's required skills and inferred role expectations.
 - Give credit only for evidence in the resume. Do not assume experience.
+- Treat equivalent names as the same skill: JS = JavaScript, TS = TypeScript,
+  NodeJS = Node.js, ReactJS = React, and Postgres = PostgreSQL. Return the job's
+  skill names. Java is not JavaScript; C, C++, and C# are distinct languages.
 - If the resume is for a different field, mark required skills as missing and explain the mismatch.
 - If a stack name appears, understand its technologies. MERN means MongoDB,
   Express, React, Node.js, and JavaScript.

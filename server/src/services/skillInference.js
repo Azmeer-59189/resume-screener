@@ -25,7 +25,7 @@ const SKILL_ALIASES = [
   }
 ];
 
-const normalizeSkill = value => String(value || '').trim().toLowerCase();
+const { canonicalSkill: normalizeSkill } = require('./skillAliases');
 
 const unique = values => [...new Map(
   values

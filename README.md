@@ -21,6 +21,7 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Transparent `0-100` candidate scoring with AI-verified evidence
 - Required-skill and semantic-evidence score breakdown
 - Matched and missing skills
+- Equivalent skill names such as JS/JavaScript, TS/TypeScript, and NodeJS/Node.js match consistently across scoring and comparison
 - Analysis status, automatic refresh, and guarded retry for interrupted or failed runs
 - Exact resume quotations for directly mentioned matched skills, with inferred matches labeled separately
 - Side-by-side comparison of two or three applicants, including scores, skill assessments, resume evidence, and saved notes

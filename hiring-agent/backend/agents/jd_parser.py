@@ -80,7 +80,8 @@ def fallback_parse_jd(jd_text: str) -> ParsedJobDescription:
         "langgraph",
     ]
     lower_text = jd_text.lower()
-    found_skills = [skill for skill in known_skills if skill in lower_text]
+    from backend.utils.skill_aliases import skill_present
+    found_skills = [skill for skill in known_skills if skill_present(skill, jd_text)]
     found_skills = expand_skills(found_skills, jd_text)
 
     experience_match = re.search(

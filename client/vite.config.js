@@ -13,6 +13,9 @@ export default defineConfig({
     },
   },
   server: {
+    fs: {
+      allow: [fileURLToPath(new URL('.', import.meta.url)), fileURLToPath(new URL('../shared', import.meta.url))],
+    },
     port: 5173,
     proxy: {
       "/api": {

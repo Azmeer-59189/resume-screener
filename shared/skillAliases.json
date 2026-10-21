@@ -1,0 +1,21 @@
+[
+  ["javascript", "js", "ecmascript"],
+  ["typescript", "ts"],
+  ["node.js", "nodejs", "node js"],
+  ["react", "reactjs", "react.js", "react js"],
+  ["vue", "vuejs", "vue.js", "vue js"],
+  ["express", "expressjs", "express.js"],
+  ["mongodb", "mongo db", "mongo"],
+  ["postgresql", "postgres"],
+  ["c++", "cplusplus"],
+  ["c#", "csharp", "c sharp"],
+  [".net", "dotnet", "dot net"],
+  ["machine learning", "ml"],
+  ["deep learning", "dl"],
+  ["large language model", "large language models", "llm", "llms"],
+  ["natural language processing", "nlp"],
+  ["artificial intelligence", "ai"],
+  ["amazon web services", "aws"],
+  ["google cloud platform", "gcp"],
+  ["kubernetes", "k8s"]
+]
