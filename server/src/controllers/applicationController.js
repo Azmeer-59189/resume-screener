@@ -100,6 +100,7 @@ exports.applyToJob = async (req, res, next) => {
       resume: resume._id,
       coverLetter,
       status: 'applied',
+      statusHistory: [{ toStatus: 'applied', changedAt: new Date() }],
       isAiProcessed: false,
       ...baseline
     });
@@ -305,6 +306,37 @@ exports.getJobApplications = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+exports.getApplication = async (req, res, next) => {
+  try {
+    const application = await Application.findById(req.params.id)
+      .populate('job', 'title jobId recruiter company')
+      .populate('candidate', 'fullName email phone')
+      .populate('resume', 'originalFileName rawText')
+      .populate('statusHistory.changedBy', 'fullName');
+    if (!application || !application.job) return res.status(404).json({ error: 'Application not found.' });
+    if (String(application.job.recruiter) !== String(req.user._id)) return res.status(403).json({ error: 'Not authorized.' });
+    const item = application.toObject();
+    if (item.resume) {
+      const original = item.resume.rawText || '';
+      item.resume.rawText = original.slice(0, 100000);
+      item.resume.textTruncated = original.length > 100000;
+    }
+    item.analysisStatus = analysisStatus(item);
+    res.json({ application: item });
+  } catch (error) { next(error); }
+};
+
+exports.updateNotes = async (req, res, next) => {
+  try {
+    if (typeof req.body.recruiterNotes !== 'string' || req.body.recruiterNotes.length > 20000) return res.status(400).json({ error: 'Notes must be text of at most 20,000 characters.' });
+    const application = await Application.findById(req.params.id).populate('job', 'recruiter');
+    if (!application || !application.job) return res.status(404).json({ error: 'Application not found.' });
+    if (String(application.job.recruiter) !== String(req.user._id)) return res.status(403).json({ error: 'Not authorized.' });
+    await Application.updateOne({ _id: application._id }, { $set: { recruiterNotes: req.body.recruiterNotes } });
+    res.json({ recruiterNotes: req.body.recruiterNotes });
+  } catch (error) { next(error); }
+};
+
 exports.downloadResume = async (req, res, next) => {
   try {
     const application = await Application.findById(req.params.id).populate('job resume');
@@ -342,7 +374,17 @@ exports.updateApplicationStatus = async (req, res, next) => {
     }
 
     const previousStatus = application.status;
+    if (req.body.expectedStatus && req.body.expectedStatus !== previousStatus) {
+      return res.status(409).json({ error: 'This application changed in another session. Refresh before updating.' });
+    }
+    const historyEntry = { fromStatus: previousStatus, toStatus: status, changedAt: new Date(), changedBy: req.user._id };
+    const changes = { $set: { status } };
+    if (typeof recruiterNotes === 'string') changes.$set.recruiterNotes = recruiterNotes;
+    if (status !== previousStatus) changes.$push = { statusHistory: historyEntry };
+    const saved = await Application.findOneAndUpdate({ _id: application._id, status: previousStatus }, changes, { new: true, runValidators: true });
+    if (!saved) return res.status(409).json({ error: 'This application changed in another session. Refresh before updating.' });
     application.status = status;
+    application.statusHistory = saved.statusHistory;
     if (typeof recruiterNotes === 'string') application.recruiterNotes = recruiterNotes;
 
     if (status === 'shortlisted' && previousStatus !== 'shortlisted') {
@@ -355,8 +397,6 @@ exports.updateApplicationStatus = async (req, res, next) => {
     } else if (previousStatus === 'rejected' && status !== 'rejected') {
       await Job.findByIdAndUpdate(application.job._id, { $inc: { rejected: -1 } });
     }
-
-    await application.save();
 
     let notification = null;
     const shouldNotify = ['shortlisted', 'rejected'].includes(status)

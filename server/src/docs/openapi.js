@@ -24,6 +24,7 @@ module.exports = {
     ].join('\n')
   },
   servers: [
+    { url: '/', description: 'Current deployment' },
     { url: 'http://localhost:5000', description: 'Local development server' }
   ],
   tags: [
@@ -432,6 +433,25 @@ module.exports = {
           },
           404: errorResponse('Job not found')
         }
+      }
+    },
+    '/api/applications/{id}': {
+      get: {
+        tags: ['Applications - Recruiter'],
+        summary: 'Get owned candidate details, AI evidence and stage history',
+        security: bearerSecurity,
+        parameters: [{ $ref: '#/components/parameters/MongoId' }],
+        responses: { 200: { description: 'Application with candidate contact details, limited extracted resume text and stage history' }, 403: errorResponse('Not authorized'), 404: errorResponse('Application not found') }
+      }
+    },
+    '/api/applications/{id}/notes': {
+      patch: {
+        tags: ['Applications - Recruiter'],
+        summary: 'Save private recruiter notes without changing stage or sending email',
+        security: bearerSecurity,
+        parameters: [{ $ref: '#/components/parameters/MongoId' }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['recruiterNotes'], properties: { recruiterNotes: { type: 'string', maxLength: 20000 } } } } } },
+        responses: { 200: { description: 'Notes saved' }, 400: errorResponse('Invalid notes'), 403: errorResponse('Not authorized'), 404: errorResponse('Application not found') }
       }
     },
     '/api/applications/{id}/resume': {

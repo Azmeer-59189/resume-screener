@@ -92,6 +92,12 @@ const applicationSchema = new mongoose.Schema({
     default: 'applied'
   },
   recruiterNotes: { type: String },
+  statusHistory: [{
+    fromStatus: String,
+    toStatus: { type: String, required: true },
+    changedAt: { type: Date, default: Date.now },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
   notifications: [{
     status: { type: String, enum: ['shortlisted', 'rejected'] },
     recipient: { type: String },

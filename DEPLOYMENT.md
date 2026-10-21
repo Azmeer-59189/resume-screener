@@ -98,6 +98,12 @@ fallback with an analysis warning. Reprocess older applications to use this path
 - Apply with a text PDF under 4 MB. Keep the tab open: analysis is awaited within
   the request on Vercel rather than launched as untracked background work.
 - Review the score and download the resume as the owning recruiter.
+- Click a candidate's name to open their detail page. Preview a PDF, save notes,
+  and verify a different recruiter cannot access the page or its data.
+- Open **Pipeline board**, move an applicant to Reviewing, and check the new
+  history entry on their detail page. Stage menus also work without dragging.
+  Shortlist/rejection moves require confirmation before attempting notification.
+  Existing applicants have no backfilled stage history; new moves are recorded.
 - Select two or three applicants and click **Compare candidates**. Check that
   selection survives filters, evidence can be expanded, and pending applicants
   show no numeric score. Closing the comparison returns to the candidate list.

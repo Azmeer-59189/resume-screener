@@ -15,6 +15,8 @@ import { Spinner } from "./components/ui";
 // Chart pages pull in recharts; load them on demand so the public apply page stays light.
 const RecruiterDashboard = lazy(() => import("./pages/recruiter/Dashboard"));
 const JobApplications = lazy(() => import("./pages/recruiter/JobApplications"));
+const CandidateDetail = lazy(() => import("./pages/recruiter/CandidateDetail"));
+const PipelineBoard = lazy(() => import("./pages/recruiter/PipelineBoard"));
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -57,6 +59,12 @@ function AppRoutes() {
           } />
           <Route path="/recruiter/jobs/:jobId/applications" element={
             <ProtectedRoute role="recruiter"><JobApplications /></ProtectedRoute>
+          } />
+          <Route path="/recruiter/applications/:id" element={
+            <ProtectedRoute role="recruiter"><CandidateDetail /></ProtectedRoute>
+          } />
+          <Route path="/recruiter/jobs/:jobId/pipeline" element={
+            <ProtectedRoute role="recruiter"><PipelineBoard /></ProtectedRoute>
           } />
 
           {/* Public */}

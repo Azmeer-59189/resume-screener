@@ -15,6 +15,8 @@ router.post(
 // Recruiter routes
 router.get('/job/:jobId', authenticate, authorize('recruiter'), appController.getJobApplications);
 router.get('/:id/resume', authenticate, authorize('recruiter'), appController.downloadResume);
+router.get('/:id', authenticate, authorize('recruiter'), appController.getApplication);
+router.patch('/:id/notes', authenticate, authorize('recruiter'), appController.updateNotes);
 router.patch('/:id/status', authenticate, authorize('recruiter'), appController.updateApplicationStatus);
 // Recruiter: re-run AI processing for an application (useful for debugging)
 router.post('/:id/reprocess', authenticate, authorize('recruiter'), appController.reprocessApplication);
