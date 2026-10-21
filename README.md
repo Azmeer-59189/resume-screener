@@ -23,6 +23,7 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Matched and missing skills
 - Analysis status, automatic refresh, and guarded retry for interrupted or failed runs
 - Exact resume quotations for directly mentioned matched skills, with inferred matches labeled separately
+- Side-by-side comparison of two or three applicants, including scores, skill assessments, resume evidence, and saved notes
 - Candidate strengths, weaknesses, and score reasoning
 - Bias review with false-positive filtering for common safe terms such as tech stacks, locations, names, and normal experience requirements
 - Tailored interview questions, including gap-verification questions for weak or wrong-field CVs

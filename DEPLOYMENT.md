@@ -85,6 +85,9 @@ applications collect quotations when **Run analysis again** is used.
 - Apply with a text PDF under 4 MB. Keep the tab open: analysis is awaited within
   the request on Vercel rather than launched as untracked background work.
 - Review the score and download the resume as the owning recruiter.
+- Select two or three applicants and click **Compare candidates**. Check that
+  selection survives filters, evidence can be expanded, and pending applicants
+  show no numeric score. Closing the comparison returns to the candidate list.
 - Download it again after a redeployment to verify GridFS persistence.
 - A different recruiter must not access that job's candidates or resume downloads.
 - Reprocess an application, then delete a test job and verify its GridFS files

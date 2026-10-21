@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import CandidateComparison from "../../components/CandidateComparison";
+import { analysisState, MAX_COMPARISON, toggleCandidate } from "../../utils/candidateComparison";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Icon from "../../components/Icon";
@@ -9,7 +11,6 @@ import { PageHeader, ScoreRing, Spinner, StatTile, StatusBadge, STATUS_CONFIG } 
 const APPLICATION_STATUSES = Object.keys(STATUS_CONFIG);
 const MAX_COVERAGE_SKILLS = 10;
 
-const analysisState = (app) => app.analysisStatus || (app.isAiProcessed ? (app.processingError ? "fallback" : "completed") : "queued");
 const isPendingAi = (app) => ["queued", "processing"].includes(analysisState(app));
 const isUnscored = (app) => ["queued", "processing", "failed", "interrupted"].includes(analysisState(app));
 const ANALYSIS_LABELS = { queued: "Queued", processing: "Analyzing resume", completed: "Analysis completed", fallback: "Score available - analysis warning", failed: "Analysis failed", interrupted: "Analysis interrupted" };
@@ -264,6 +265,16 @@ export default function JobApplications() {
   const [notes, setNotes] = useState({});
   const [statusMessage, setStatusMessage] = useState(null);
   const [retrying, setRetrying] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const compareTrigger = useRef(null);
+  const selectedApplications = selectedIds.map(id => applications.find(app => app._id === id)).filter(Boolean);
+
+  useEffect(() => { setSelectedIds([]); setComparisonOpen(false); }, [jobId]);
+  useEffect(() => {
+    setSelectedIds(current => current.filter(id => applications.some(app => app._id === id)));
+  }, [applications]);
+  useEffect(() => { if (selectedIds.length < 2) setComparisonOpen(false); }, [selectedIds.length]);
 
   useEffect(() => {
     const load = async () => {
@@ -569,6 +580,27 @@ export default function JobApplications() {
         </div>
       </div>
 
+      {applications.length > 0 && (
+        <div className="card p-4 mb-5 flex flex-wrap items-center gap-3">
+          <p className="text-sm text-slate-300" role="status">{selectedApplications.length} of {MAX_COMPARISON} selected</p>
+          <span className="text-xs text-slate-500">Select 2 or 3 candidates to compare. Selection stays when filters change.</span>
+          <button ref={compareTrigger} disabled={selectedApplications.length < 2} onClick={() => setComparisonOpen(true)} className="btn-primary btn-sm">Compare candidates</button>
+          {selectedApplications.length > 0 && <button onClick={() => { setSelectedIds([]); setComparisonOpen(false); }} className="btn-secondary btn-sm">Clear selection</button>}
+          <div className="w-full flex flex-wrap gap-2">
+            {selectedApplications.map(app => <button key={app._id} onClick={() => setSelectedIds(current => current.filter(id => id !== app._id))} className="text-xs rounded-lg border border-blue-500/30 px-3 py-1.5 text-blue-300 hover:bg-blue-500/10" aria-label={`Remove ${app.candidate?.fullName || 'candidate'} from comparison`}>
+              {app.candidate?.fullName || 'Unknown candidate'} <span aria-hidden="true">&times;</span>
+            </button>)}
+          </div>
+        </div>
+      )}
+
+      {comparisonOpen && selectedApplications.length >= 2 && <CandidateComparison
+        applications={selectedApplications}
+        requiredSkills={job?.requiredSkills || []}
+        onDownload={downloadResume}
+        onClose={() => { setComparisonOpen(false); compareTrigger.current?.focus(); }}
+      />}
+
       {filtered.length === 0 ? (
         <div className="card p-16 text-center">
           <p className="text-slate-400">No applications {filter !== "all" ? `with status "${filter}"` : "yet"}.</p>
@@ -581,6 +613,13 @@ export default function JobApplications() {
             return (
               <div key={app._id} className="card p-5 hover:border-slate-700 transition-colors">
                 <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                    <input type="checkbox" checked={selectedIds.includes(app._id)} onChange={() => setSelectedIds(current => toggleCandidate(current, app._id))}
+                      disabled={!selectedIds.includes(app._id) && selectedIds.length >= MAX_COMPARISON}
+                      aria-label={`Compare ${app.candidate?.fullName || 'candidate'} (${app.candidate?.email || app._id})`}
+                      className="accent-blue-500 h-4 w-4 disabled:opacity-40" />
+                    Compare
+                  </label>
                   <ScoreRing score={app.matchScore} pending={isUnscored(app)} pendingLabel={isPendingAi(app) ? "Analyzing" : "No score"} />
 
                   {/* Candidate info */}
