@@ -39,8 +39,12 @@ Return ONLY valid JSON with these keys:
 - summary: string
 
 Rules:
-- If the JD is vague or only contains a title, infer the standard technologies,
-  responsibilities, and must-have requirements for that role.
+- If the JD is vague or only contains a title, infer role responsibilities and
+  capabilities. Do not arbitrarily require a particular language, framework,
+  or every technology used in that field when no stack was requested. Use broad
+  capabilities such as API development or data modeling instead.
+- A job title is not itself a required skill. Preserve explicitly requested
+  technologies, qualifications, and constraints as requirements.
 - For stack names, expand the stack into concrete technologies. For example,
   MERN means MongoDB, Express, React, Node.js, and JavaScript.
 - Do not invent company-specific details, salary, location, or seniority unless
@@ -120,14 +124,10 @@ def parse_jd_text(jd_text: str, use_llm: bool = True) -> ParsedJobDescription:
         model_output = call_configured_llm(prompt)
         parsed_json = extract_json_object(model_output)
         parsed = ParsedJobDescription.model_validate(parsed_json)
-        context = " ".join([
-            jd_text,
-            parsed.title,
-            " ".join(parsed.required_skills),
-            " ".join(parsed.must_have_requirements),
-        ])
-        parsed.required_skills = expand_skills(parsed.required_skills, context)
-        parsed.must_have_requirements = expand_skills(parsed.must_have_requirements, context)
+        # Let the LLM infer the role profile; do not add hard-coded role/stack guesses.
+        from backend.utils.skill_aliases import canonical_skill
+        parsed.required_skills = list({canonical_skill(skill): skill for skill in parsed.required_skills if skill.strip()}.values())
+        parsed.must_have_requirements = list({canonical_skill(skill): skill for skill in parsed.must_have_requirements if skill.strip()}.values())
         return parsed
     except (requests.RequestException, json.JSONDecodeError, ValidationError, ValueError):
         return fallback_parse_jd(jd_text)

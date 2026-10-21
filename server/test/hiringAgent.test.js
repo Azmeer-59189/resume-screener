@@ -74,6 +74,18 @@ test('uses the weights reported by the agent in the score breakdown', () => {
   assert.match(update.scoreBreakdown.formula, /required skills 40% \+ semantic evidence 60%/);
 });
 
+test('AI role assessments and local fallback provenance survive the Node mapping', () => {
+  const ai = mapPipelineResultToApplicationUpdate({ scores: [{ score: 90, scoring_source: 'llm', role_assessments: [
+    { criterion: 'Design services', supported: true, resume_quote: 'Built authenticated endpoints.', explanation: 'Demonstrates server-side work.' }
+  ] }] });
+  assert.equal(ai.scoringMethod, 'agent');
+  assert.equal(ai.roleAssessments[0].resumeQuote, 'Built authenticated endpoints.');
+  assert.match(ai.scoreBreakdown.formula, /AI-assessed role responsibilities/);
+  const local = mapPipelineResultToApplicationUpdate({ scores: [{ score: 50, scoring_source: 'local', processing_warning: 'AI unavailable; local fallback used.' }] });
+  assert.equal(local.scoringMethod, 'local');
+  assert.match(local.processingError, /local fallback/);
+});
+
 test('maps hiring-agent pipeline output into Application update fields', () => {
   const update = mapPipelineResultToApplicationUpdate({
     jd_parsed: { title: 'Backend Engineer' },

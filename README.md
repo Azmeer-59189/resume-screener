@@ -19,9 +19,10 @@ Candidates do not need an account. They open a job link, enter their contact det
 - Account-free candidate application form
 - Resume text extraction and chunking for PDF, Word, text, RTF, and image files
 - Transparent `0-100` candidate scoring with AI-verified evidence
-- Required-skill and semantic-evidence score breakdown
+- Required-skill and AI-assessed role-evidence score breakdown
 - Matched and missing skills
 - Equivalent skill names such as JS/JavaScript, TS/TypeScript, and NodeJS/Node.js match consistently across scoring and comparison
+- AI assessment of demonstrated role responsibilities without requiring the job title to appear in the CV, backed by verified resume quotations
 - Analysis status, automatic refresh, and guarded retry for interrupted or failed runs
 - Exact resume quotations for directly mentioned matched skills, with inferred matches labeled separately
 - Side-by-side comparison of two or three applicants, including scores, skill assessments, resume evidence, and saved notes
@@ -125,10 +126,13 @@ The hiring-agent pipeline:
 The LLM does **not** directly decide the final numeric score. It verifies evidence, then the application calculates:
 
 ```text
-Final score = AI-verified required skills * 75% + semantic evidence * 25%
+Final score = AI-verified required skills * 75% + AI-assessed role evidence * 25%
 ```
 
-This prevents unstable scores such as the same CV receiving very different results across reprocessing runs.
+The numeric calculation is deterministic for a given assessment. AI evidence and
+inferred responsibilities may still vary across runs. A matching job title is
+not required: work and project quotations can demonstrate the role. If no separate
+required skills are defined, verified role evidence contributes the full score.
 
 The application stores:
 

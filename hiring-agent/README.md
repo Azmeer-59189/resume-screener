@@ -191,11 +191,15 @@ only verifies evidence:
 The final score is then calculated deterministically in code:
 
 ```text
-Final score = AI-verified required skills * 75% + semantic evidence * 25%
+Final score = AI-verified required skills * 75% + AI-assessed role evidence * 25%
 ```
 
-This prevents unstable results where the same CV can receive widely different
-scores across repeated runs.
+The AI assesses 3–6 role responsibilities using quotations from the original CV.
+The title itself need not appear: relevant projects and accomplishments can
+demonstrate the duties. Code rejects invented quotations and computes the score
+from the resulting evidence. With no separate skill requirements, role evidence
+contributes 100%. Arithmetic is deterministic; model assessments may still vary.
+Unavailable or invalid AI output is explicitly labeled as a local fallback.
 
 When `use_llm=False`, the fallback score uses deterministic skill overlap and
 semantic similarity.

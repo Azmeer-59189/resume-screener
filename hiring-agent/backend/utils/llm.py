@@ -77,7 +77,7 @@ def call_groq(prompt: str, model: str = DEFAULT_GROQ_MODEL) -> str:
         ],
         "temperature": 0,
         "top_p": 1,
-        "max_completion_tokens": 1400,
+        "max_completion_tokens": 3000,
     }
     # gpt-oss models reason before answering, and reasoning tokens count against
     # max_completion_tokens; keep it short so the JSON answer isn't truncated.

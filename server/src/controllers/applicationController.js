@@ -147,6 +147,11 @@ const processAIAnalysis = async (applicationId, job, resume, chunks, candidateNa
     { $set: {
       ...(update.scoringMethod && update.scoringMethod !== 'agent' ? { hiringAgent: {}, biasFlags: null, interviewQuestions: [] } : {}),
       ...update,
+      roleAssessments: (update.roleAssessments || []).map(item => ({
+        ...item,
+        supported: Boolean(item.supported && item.resumeQuote && (resume.rawText || '').includes(item.resumeQuote)),
+        resumeQuote: item.supported && item.resumeQuote && (resume.rawText || '').includes(item.resumeQuote) ? item.resumeQuote : ''
+      })),
       skillEvidence: buildSkillEvidence(update.matchedSkills || [], resume.rawText || ''),
       processingStatus: update.processingError ? 'fallback' : 'completed',
       processingFinishedAt: new Date()

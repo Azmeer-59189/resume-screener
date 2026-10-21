@@ -83,6 +83,12 @@ const mapPipelineResultToApplicationUpdate = result => {
   const skillWeight = hasWeights ? Math.round(Number(score.skill_weight)) : 75;
   const contextWeight = hasWeights ? Math.round(Number(score.semantic_weight)) : 25;
   const skillLabel = skillWeight === 75 && contextWeight === 25 ? 'AI-verified required skills' : 'required skills';
+  const localFallback = score.scoring_source === 'local';
+  const roleAssessments = Array.isArray(score.role_assessments) ? score.role_assessments.map(item => ({
+    criterion: String(item.criterion || ''), supported: item.supported === true,
+    resumeQuote: String(item.resume_quote || ''), explanation: String(item.explanation || '')
+  })) : [];
+  const contextLabel = score.scoring_source === 'llm' ? 'AI-assessed role responsibilities' : 'semantic evidence';
 
   return {
     matchScore,
@@ -91,7 +97,7 @@ const mapPipelineResultToApplicationUpdate = result => {
     recommendation: recommendationFor(matchScore),
     strengths: matchedSkills.length
       ? [`Agent matched required skills: ${matchedSkills.join(', ')}.`]
-      : ['The hiring-agent pipeline parsed the resume, but no explicit required skill match was found.'],
+      : [roleAssessments.some(item => item.supported) ? 'Role responsibilities are supported by the candidate’s project or work evidence.' : 'No supported required-skill match was found.'],
     weaknesses: missingSkills.length
       ? [`Agent did not find explicit evidence for: ${missingSkills.join(', ')}.`]
       : ['The hiring-agent pipeline did not flag major required-skill gaps.'],
@@ -105,11 +111,12 @@ const mapPipelineResultToApplicationUpdate = result => {
       matchedTermCount: 0,
       totalTermCount: 0,
       matchedTerms: [],
-      formula: `Hiring-agent ${skillLabel} ${skillWeight}% + semantic evidence ${contextWeight}%`
+      formula: `Hiring-agent ${skillLabel} ${skillWeight}% + ${contextLabel} ${contextWeight}%`
     },
     experienceSummary: score.reasoning || `Hiring-agent match score is ${matchScore}%.`,
     aiAnalysis: score.reasoning || `Hiring-agent match score is ${matchScore}%.`,
-    scoringMethod: 'agent',
+    scoringMethod: localFallback ? 'local' : 'agent',
+    roleAssessments,
     hiringAgent: {
       jdParsed: result.jd_parsed || {},
       resumesParsed: result.resumes_parsed || [],
@@ -118,9 +125,8 @@ const mapPipelineResultToApplicationUpdate = result => {
     },
     biasFlags: result.bias_flags || {},
     interviewQuestions: normalizeQuestionGroups(result.interview_questions),
-    processingError: Array.isArray(result.errors) && result.errors.length
-      ? result.errors.join('; ')
-      : null
+    processingError: score.processing_warning || (localFallback ? 'AI role assessment unavailable; local fallback used.' : null)
+      || (Array.isArray(result.errors) && result.errors.length ? result.errors.join('; ') : null)
   };
 };
 

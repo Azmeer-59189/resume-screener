@@ -65,6 +65,11 @@ export default function CandidateComparison({ applications, requiredSkills, onCl
               })}
             </tr>)}
             {row('Score reasoning', app => isScoreReady(app) ? app.aiAnalysis || app.experienceSummary || 'No explanation available.' : 'Available after analysis completes.')}
+            {row('AI role evidence', app => isScoreReady(app) && app.roleAssessments?.length ? <div className="space-y-3">{app.roleAssessments.map((item, index) => <details key={index}>
+              <summary className="cursor-pointer text-blue-300">{item.criterion}: {item.supported ? 'Supported' : 'Not demonstrated'}</summary>
+              {item.resumeQuote && <blockquote className="mt-2 text-xs whitespace-pre-wrap">{item.resumeQuote}</blockquote>}
+              <p className="mt-2 text-xs text-slate-400">{item.explanation}</p>
+            </details>)}</div> : 'No AI role assessment available.')}
             {row('Strengths', app => isScoreReady(app) ? app.strengths?.join(' ') || 'None recorded.' : 'Not available')}
             {row('Gaps', app => isScoreReady(app) ? app.weaknesses?.join(' ') || 'None recorded.' : 'Not available')}
             {row('Saved recruiter notes', app => <span className="whitespace-pre-wrap">{app.recruiterNotes || 'No saved notes.'}</span>)}

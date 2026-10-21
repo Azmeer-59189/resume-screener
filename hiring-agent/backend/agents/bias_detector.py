@@ -199,7 +199,7 @@ def _is_false_positive(flag: BiasFlag) -> bool:
     ):
         return True
 
-    if category == "age" and EXPERIENCE_ONLY.match(text):
+    if category in {"age", "proxy"} and EXPERIENCE_ONLY.match(text):
         return True
 
     if category in {"nationality", "race"} and LOCATION_WORDS.search(text):

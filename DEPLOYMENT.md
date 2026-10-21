@@ -80,6 +80,19 @@ mention establishes that the text occurs in the document, not the candidate's
 proficiency. Matches without a direct mention are marked as inferred. Existing
 applications collect quotations when **Run analysis again** is used.
 
+With `HIRING_AGENT_USE_LLM=true`, the matcher asks the configured LLM to assess
+3–6 responsibilities from the job against the original CV's projects and work.
+The job title need not occur in the CV. Supported responsibilities must include
+an exact quotation found in the extracted CV; invented quotations are rejected.
+The AI path's context component measures this responsibility coverage, not lexical
+word overlap. Explicit required skills still contribute 75% and role evidence 25%;
+if there are no separately defined skill requirements, role evidence contributes
+100%. These are review signals, not guarantees of proficiency.
+
+The recruiter sees **AI role assessment** in the score explanation. If the model
+cannot return a usable assessment, the result is explicitly shown as a local
+fallback with an analysis warning. Reprocess older applications to use this path.
+
 - `/health` returns HTTP 200 and `/agent/health` returns HTTP 401 without its secret.
 - Register a recruiter, create a job, and open its application link in incognito.
 - Apply with a text PDF under 4 MB. Keep the tab open: analysis is awaited within

@@ -61,6 +61,12 @@ const applicationSchema = new mongoose.Schema({
     start: Number,
     end: Number
   }],
+  roleAssessments: [{
+    criterion: String,
+    supported: Boolean,
+    resumeQuote: String,
+    explanation: String
+  }],
   hiringAgent: {
     jdParsed: { type: mongoose.Schema.Types.Mixed },
     resumesParsed: [{ type: mongoose.Schema.Types.Mixed }],

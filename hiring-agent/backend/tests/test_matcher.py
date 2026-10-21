@@ -1,9 +1,46 @@
 from backend.agents.matcher import (
     AiSkillEvidence,
+    RoleAssessment,
     _stable_score_from_evidence,
     matcher_node,
     score_candidate,
 )
+
+
+def test_role_fit_uses_work_evidence_without_job_title() -> None:
+    jd = {"title": "Backend Engineer", "required_skills": ["Backend Engineer", "Python"]}
+    raw = "Built authenticated HTTP endpoints in Python. Tuned PostgreSQL queries. Added automated service tests."
+    evidence = AiSkillEvidence(matched_skills=["Python"], role_assessments=[
+        RoleAssessment(criterion="Implement services", supported=True, resume_quote="Built authenticated HTTP endpoints in Python.", explanation="Demonstrates server-side API development."),
+        RoleAssessment(criterion="Maintain data access", supported=True, resume_quote="Tuned PostgreSQL queries."),
+        RoleAssessment(criterion="Test services", supported=True, resume_quote="Added automated service tests."),
+    ])
+    assert "Backend Engineer" not in raw
+    score = _stable_score_from_evidence(jd, {"skills": ["Python"]}, evidence, resume_text=raw)
+    assert score.score == 100
+    assert score.scoring_source == "llm"
+    assert score.missing_required_skills == []
+    assert len(score.role_assessments) == 3
+
+
+def test_invented_resume_quotes_do_not_contribute_to_role_fit() -> None:
+    evidence = AiSkillEvidence(role_assessments=[
+        RoleAssessment(criterion=criterion, supported=True, resume_quote="Invented professional experience")
+        for criterion in ["Design APIs", "Manage databases", "Test services"]
+    ])
+    score = _stable_score_from_evidence({"title": "Backend Engineer"}, {}, evidence, resume_text="Designed printed posters.")
+    assert score.score == 0
+    assert all(not item.supported and not item.resume_quote for item in score.role_assessments)
+
+
+def test_ai_failure_is_explicitly_labeled_as_local(monkeypatch) -> None:
+    from backend.agents import matcher
+    def fail(_prompt):
+        raise ValueError("Model response unavailable")
+    monkeypatch.setattr(matcher, "call_configured_llm", fail)
+    score = matcher.score_candidate_with_ai({"required_skills": ["Python"]}, {"skills": ["Python"]})
+    assert score.scoring_source == "local"
+    assert "local fallback" in score.processing_warning
 
 
 SAMPLE_JD = {

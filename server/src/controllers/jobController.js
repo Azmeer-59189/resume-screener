@@ -140,6 +140,7 @@ const rescoreJobApplications = async job => {
             ...scoreResumeLocally(job, application.resume.rawText),
             skillEvidence: buildSkillEvidence(scoreResumeLocally(job, application.resume.rawText).matchedSkills, application.resume.rawText),
             processingStatus: 'completed',
+            roleAssessments: [],
             processingRunId: randomUUID(),
             processingFinishedAt: new Date(),
             isAiProcessed: true,

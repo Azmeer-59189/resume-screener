@@ -32,3 +32,6 @@ Thumbs.db
 .npm-cache/
 __pycache__/
 .venv-deploy/
+.venv-ai-tests/
+.python-runtime/
+.uv-cache/

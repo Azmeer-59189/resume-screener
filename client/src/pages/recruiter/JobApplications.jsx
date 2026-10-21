@@ -43,8 +43,8 @@ function contextComponent(app, breakdown) {
   }
   if (app.scoringMethod === "agent") {
     return {
-      title: "Overall similarity",
-      detail: "How closely the CV's overall content matches the job description",
+      title: app.roleAssessments?.length ? "Role responsibilities" : "Overall similarity",
+      detail: app.roleAssessments?.length ? "AI assessment of demonstrated work and projects against this role" : "How closely the CV's overall content matches the job description",
     };
   }
   return { title: "Job context", detail: null };
@@ -112,6 +112,16 @@ function ScoreReasoning({ app }) {
           <p className="sm:col-span-2 text-xs text-slate-500">{breakdown.formula}</p>
         </div>
       )}
+
+      {app.roleAssessments?.length > 0 && <div className="mb-5">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-blue-400">AI role assessment</h4>
+        <p className="mt-1 text-xs text-slate-400">The job title does not need to appear in the CV. Review how the candidate’s work supports each responsibility.</p>
+        <div className="mt-3 space-y-3">{app.roleAssessments.map((item, index) => <div key={index} className="rounded-lg border border-slate-800 p-3">
+          <p className={`text-sm font-medium ${item.supported ? "text-emerald-300" : "text-amber-300"}`}>{item.criterion} - {item.supported ? "Supported" : "Not demonstrated"}</p>
+          {item.resumeQuote && <blockquote className="mt-2 text-sm text-slate-300 whitespace-pre-wrap">{item.resumeQuote}</blockquote>}
+          <p className="mt-2 text-xs text-slate-400">{item.explanation}</p>
+        </div>)}</div>
+      </div>}
 
       <div className="mb-4">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-blue-400">Resume evidence</h4>
